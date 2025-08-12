@@ -128,13 +128,13 @@ if df is not None and not df.empty:
         'Kelembapan Tanah': 'Kelembaban Permukaan Tanah',
     })
 
-        fitur = [
-            'Tavg: Temperatur rata-rata (°C)',
-            'RH_avg: Kelembapan rata-rata (%)',
-            'RR: Curah hujan (mm)',
-            'ff_avg: Kecepatan angin rata-rata (m/s)',
-            'Kelembaban Permukaan Tanah'
-        ]
+    fitur = [
+        'Tavg: Temperatur rata-rata (°C)',
+        'RH_avg: Kelembapan rata-rata (%)',
+        'RR: Curah hujan (mm)',
+        'ff_avg: Kecepatan angin rata-rata (m/s)',
+        'Kelembaban Permukaan Tanah'
+    ]
 
         clean_df = df[fitur].copy()
         for col in fitur:
@@ -388,6 +388,7 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
