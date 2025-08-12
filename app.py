@@ -101,7 +101,7 @@ with col2:
     with col_btn:
         st.markdown(
             """
-            <a href='https://docs.google.com/spreadsheets/d/1ZscUJ6SLPIF33t8ikVHUmR68b-y3Q9_r_p9d2rDRMCM/edit?gid=0#gid=0' target='_blank'>
+            <a href='https://docs.google.com/spreadsheets/d/1epkIp2U1okjCfXOoz_bkgey4kYa30EtmWlLB6c_911Y/edit?gid=0#gid=0' target='_blank'>
             <button style='padding: 6px 16px; background-color: #1f77b4; color: white; border: none; border-radius: 4px; cursor: pointer;'>Data Cloud</button>
             </a>
             """,
@@ -119,14 +119,14 @@ with realtime:
     st.markdown("<div class='section-title'>Hasil Prediksi Data Realtime</div>", unsafe_allow_html=True)
 
     if df is not None and not df.empty:
-        df = df.rename(columns={
-            'Suhu Udara': 'Tavg: Temperatur rata-rata (°C)',
-            'Kelembapan Udara': 'RH_avg: Kelembapan rata-rata (%)',
-            'Curah Hujan/Jam': 'RR: Curah hujan (mm)',
-            'Kecepatan Angin (ms)': 'ff_avg: Kecepatan angin rata-rata (m/s)',
-            'Kelembapan Tanah': 'Kelembaban Permukaan Tanah',
-            'Waktu': 'Waktu'
-        })
+df = df.rename(columns={
+    'Timestamp': 'Waktu',
+    'Suhu': 'Tavg: Temperatur rata-rata (°C)',
+    'Kelembapan Udara': 'RH_avg: Kelembapan rata-rata (%)',
+    'Curah Hujan': 'RR: Curah hujan (mm)',
+    'Kecepatan Angin': 'ff_avg: Kecepatan angin rata-rata (m/s)',
+    'Kelembapan Tanah': 'Kelembaban Permukaan Tanah',
+})
 
         fitur = [
             'Tavg: Temperatur rata-rata (°C)',
@@ -388,6 +388,7 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
