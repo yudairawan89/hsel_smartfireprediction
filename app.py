@@ -119,14 +119,14 @@ with realtime:
     st.markdown("<div class='section-title'>Hasil Prediksi Data Realtime</div>", unsafe_allow_html=True)
 
     if df is not None and not df.empty:
-df = df.rename(columns={
+    df = df.rename(columns={
     'Timestamp': 'Waktu',
     'Suhu': 'Tavg: Temperatur rata-rata (°C)',
     'Kelembapan Udara': 'RH_avg: Kelembapan rata-rata (%)',
     'Curah Hujan': 'RR: Curah hujan (mm)',
     'Kecepatan Angin': 'ff_avg: Kecepatan angin rata-rata (m/s)',
     'Kelembapan Tanah': 'Kelembaban Permukaan Tanah',
-})
+    })
 
         fitur = [
             'Tavg: Temperatur rata-rata (°C)',
@@ -388,6 +388,7 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
