@@ -32,15 +32,19 @@ st.markdown("""
 
 # === FUNGSI BANTUAN ===
 def convert_day_to_indonesian(day_name):
-    return {'Monday': 'Senin', 'Tuesday': 'Selasa', 'Wednesday': 'Rabu',
-            'Thursday': 'Kamis', 'Friday': 'Jumat', 'Saturday': 'Sabtu',
-            'Sunday': 'Minggu'}.get(day_name, day_name)
+    return {
+        'Monday': 'Senin', 'Tuesday': 'Selasa', 'Wednesday': 'Rabu',
+        'Thursday': 'Kamis', 'Friday': 'Jumat', 'Saturday': 'Sabtu',
+        'Sunday': 'Minggu'
+    }.get(day_name, day_name)
 
 def convert_month_to_indonesian(month_name):
-    return {'January': 'Januari', 'February': 'Februari', 'March': 'Maret',
-            'April': 'April', 'May': 'Mei', 'June': 'Juni', 'July': 'Juli',
-            'August': 'Agustus', 'September': 'September', 'October': 'Oktober',
-            'November': 'November', 'December': 'Desember'}.get(month_name, month_name)
+    return {
+        'January': 'Januari', 'February': 'Februari', 'March': 'Maret',
+        'April': 'April', 'May': 'Mei', 'June': 'Juni', 'July': 'Juli',
+        'August': 'Agustus', 'September': 'September', 'October': 'Oktober',
+        'November': 'November', 'December': 'Desember'
+    }.get(month_name, month_name)
 
 def convert_to_label(pred):
     return {
@@ -158,6 +162,7 @@ with realtime:
 
         # Baris terakhir untuk ringkasan
         last_row = df.iloc[-1]
+        last_num = clean_df.iloc[-1]  # versi numerik untuk formatting
         waktu = pd.to_datetime(last_row['Waktu'])
         hari = convert_day_to_indonesian(waktu.strftime('%A'))
         bulan = convert_month_to_indonesian(waktu.strftime('%B'))
@@ -167,7 +172,7 @@ with realtime:
 
         sensor_df = pd.DataFrame({
             "Variabel": fitur,
-            "Value": [f"{last_row[col]:.1f}" for col in fitur]
+            "Value": [f"{float(last_num[col]):.1f}" for col in fitur]
         })
 
         # 3 kolom tampilan
@@ -205,11 +210,11 @@ with realtime:
             popup_text = folium.Popup(f"""
                 <div style='width: 230px; font-size: 13px; line-height: 1.5;'>
                 <b>Prediksi:</b> {risk_label}<br>
-                <b>Suhu:</b> {last_row[fitur[0]]} °C<br>
-                <b>Kelembapan:</b> {last_row[fitur[1]]} %<br>
-                <b>Curah Hujan:</b> {last_row[fitur[2]]} mm<br>
-                <b>Kecepatan Angin:</b> {last_row[fitur[3]]} m/s<br>
-                <b>Kelembaban Tanah:</b> {last_row[fitur[4]]} %<br>
+                <b>Suhu:</b> {last_num[fitur[0]]:.1f} °C<br>
+                <b>Kelembapan:</b> {last_num[fitur[1]]:.1f} %<br>
+                <b>Curah Hujan:</b> {last_num[fitur[2]]:.1f} mm<br>
+                <b>Kecepatan Angin:</b> {last_num[fitur[3]]:.1f} m/s<br>
+                <b>Kelembaban Tanah:</b> {last_num[fitur[4]]:.1f} %<br>
                 <b>Waktu:</b> {last_row['Waktu']}
                 </div>
             """, max_width=250)
