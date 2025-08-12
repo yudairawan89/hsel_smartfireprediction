@@ -171,23 +171,23 @@ sensor_df = pd.DataFrame({
 })
 
 col_kiri, col_tengah, col_kanan = st.columns([1.2, 1.2, 1.2])
-with col_kiri:
-    st.markdown("<h5 style='text-align: center;'>Data Sensor Realtime</h5>", unsafe_allow_html=True)
-    sensor_html = "<table style='width: 100%; border-collapse: collapse;'>"
-    sensor_html += "<thead><tr><th>Variabel</th><th>Value</th></tr></thead><tbody>"
-    for i in range(len(sensor_df)):
-        var = sensor_df.iloc[i, 0]
-        val = sensor_df.iloc[i, 1]
-        sensor_html += f"<tr><td style='padding:6px;'>{var}</td><td style='padding:6px;'>{val}</td></tr>"
-    sensor_html += "</tbody></table>"
-    st.markdown(sensor_html, unsafe_allow_html=True)
-
-    st.markdown(
-        f"<p style='background-color:{bg}; color:{font}; padding:10px; border-radius:8px; font-weight:bold;'>"
-        f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran: "
-        f"<span style='text-decoration: underline; font-size: 22px;'>{risk_label}</span></p>",
-        unsafe_allow_html=True
-    )
+        with col_kiri:
+            st.markdown("<h5 style='text-align: center;'>Data Sensor Realtime</h5>", unsafe_allow_html=True)
+            sensor_html = "<table style='width: 100%; border-collapse: collapse;'>"
+            sensor_html += "<thead><tr><th>Variabel</th><th>Value</th></tr></thead><tbody>"
+            for i in range(len(sensor_df)):
+                var = sensor_df.iloc[i, 0]
+                val = sensor_df.iloc[i, 1]
+                sensor_html += f"<tr><td style='padding:6px;'>{var}</td><td style='padding:6px;'>{val}</td></tr>"
+            sensor_html += "</tbody></table>"
+            st.markdown(sensor_html, unsafe_allow_html=True)
+        
+            st.markdown(
+                f"<p style='background-color:{bg}; color:{font}; padding:10px; border-radius:8px; font-weight:bold;'>"
+                f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran: "
+                f"<span style='text-decoration: underline; font-size: 22px;'>{risk_label}</span></p>",
+                unsafe_allow_html=True
+            )
 
         with col_tengah:
 
@@ -223,12 +223,12 @@ with col_kiri:
             folium_static(m, width=450, height=350)
 
 
-with col_kanan:
-
-    st.markdown("<h5 style='text-align: center;'>IoT Smart Fire Prediction</h5>", unsafe_allow_html=True)
-    from PIL import Image
-    image = Image.open("forestiot4.jpg")
-    st.image(image.resize((480, 360)))
+        with col_kanan:
+        
+            st.markdown("<h5 style='text-align: center;'>IoT Smart Fire Prediction</h5>", unsafe_allow_html=True)
+            from PIL import Image
+            image = Image.open("forestiot4.jpg")
+            st.image(image.resize((480, 360)))
 
 
 
@@ -401,6 +401,7 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
