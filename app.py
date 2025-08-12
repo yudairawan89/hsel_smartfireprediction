@@ -136,9 +136,9 @@ if df is not None and not df.empty:
         'Kelembaban Permukaan Tanah'
     ]
 
-        clean_df = df[fitur].copy()
-        for col in fitur:
-            clean_df[col] = clean_df[col].astype(str).str.replace(',', '.').astype(float).fillna(0)
+    clean_df = df[fitur].copy()
+    for col in fitur:
+        clean_df[col] = clean_df[col].astype(str).str.replace(',', '.').astype(float).fillna(0)
 
         scaled_all = scaler.transform(clean_df)
         predictions = [convert_to_label(p) for p in model.predict(scaled_all)]
@@ -388,6 +388,7 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
