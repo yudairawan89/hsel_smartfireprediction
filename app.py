@@ -136,26 +136,39 @@ if df is not None and not df.empty:
         'Kelembaban Permukaan Tanah'
     ]
 
-    clean_df = df[fitur].copy()
-    for col in fitur:
-        clean_df[col] = clean_df[col].astype(str).str.replace(',', '.').astype(float).fillna(0)
+# pilih kolom fitur
+clean_df = df[fitur].copy()
 
-        scaled_all = scaler.transform(clean_df)
-        predictions = [convert_to_label(p) for p in model.predict(scaled_all)]
-        df["Prediksi Kebakaran"] = predictions
+# konversi koma -> titik dan jadikan float
+for col in fitur:
+    clean_df[col] = (
+        clean_df[col]
+            .astype(str)
+            .str.replace(',', '.', regex=False)
+            .astype(float)
+            .fillna(0)
+    )
 
-        last_row = df.iloc[-1]
-        waktu = pd.to_datetime(last_row['Waktu'])
-        hari = convert_day_to_indonesian(waktu.strftime('%A'))
-        bulan = convert_month_to_indonesian(waktu.strftime('%B'))
-        tanggal = waktu.strftime(f'%d {bulan} %Y')
-        risk_label = last_row["Prediksi Kebakaran"]
-        font, bg = risk_styles.get(risk_label, ("black", "white"))
+# pengaman tambahan (jika masih ada string nyasar)
+clean_df = clean_df.apply(pd.to_numeric, errors='coerce').fillna(0)
 
-        sensor_df = pd.DataFrame({
-            "Variabel": fitur,
-            "Value": [f"{last_row[col]:.1f}" for col in fitur]
-        })
+# ---- ini SUDAH DI LUAR loop for ----
+scaled_all = scaler.transform(clean_df)
+predictions = [convert_to_label(p) for p in model.predict(scaled_all)]
+df["Prediksi Kebakaran"] = predictions
+
+last_row = df.iloc[-1]
+waktu = pd.to_datetime(last_row['Waktu'])
+hari = convert_day_to_indonesian(waktu.strftime('%A'))
+bulan = convert_month_to_indonesian(waktu.strftime('%B'))
+tanggal = waktu.strftime(f'%d {bulan} %Y')
+risk_label = last_row["Prediksi Kebakaran"]
+font, bg = risk_styles.get(risk_label, ("black", "white"))
+
+sensor_df = pd.DataFrame({
+    "Variabel": fitur,
+    "Value": [f"{last_row[col]:.1f}" for col in fitur]
+})
 
         col_kiri, col_tengah, col_kanan = st.columns([1.2, 1.2, 1.2])
         with col_kiri:
@@ -388,6 +401,7 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
