@@ -67,8 +67,19 @@ scaler = load_scaler()
 
 # === LOAD DATA TANPA CACHE ===
 def load_data():
-    url = "https://docs.google.com/spreadsheets/d/1ZscUJ6SLPIF33t8ikVHUmR68b-y3Q9_r_p9d2rDRMCM/export?format=csv"
+
+
+# Alat 1   
+#   url = "https://docs.google.com/spreadsheets/d/1ZscUJ6SLPIF33t8ikVHUmR68b-y3Q9_r_p9d2rDRMCM/export?format=csv"
+#   return pd.read_csv(url)
+
+# Alat 2  
+    url = "https://docs.google.com/spreadsheets/d/1epkIp2U1okjCfXOoz_bkgey4kYa30EtmWlLB6c_911Y/export?format=csv""
     return pd.read_csv(url)
+
+
+
+
 
 # === HEADER ===
 col1, col2 = st.columns([1, 9])
@@ -377,5 +388,6 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
