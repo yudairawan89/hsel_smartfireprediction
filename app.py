@@ -6,9 +6,10 @@ from datetime import datetime
 from io import BytesIO
 from streamlit_folium import folium_static
 import folium
+from PIL import Image
 
 # === PAGE CONFIG ===
-st.set_page_config(page_title="Smart Fire Prediction HSEL", page_icon="favicon.ico",layout="wide")
+st.set_page_config(page_title="Smart Fire Prediction HSEL", page_icon="favicon.ico", layout="wide")
 
 # === STYLE KUSTOM ===
 st.markdown("""
@@ -25,9 +26,7 @@ st.markdown("""
         border-radius: 6px;
         font-weight: bold;
     }
-    .scrollable-table {
-        overflow-x: auto;
-    }
+    .scrollable-table { overflow-x: auto; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -44,7 +43,12 @@ def convert_month_to_indonesian(month_name):
             'November': 'November', 'December': 'Desember'}.get(month_name, month_name)
 
 def convert_to_label(pred):
-    return {0: "Low / Rendah", 1: "Moderate / Sedang", 2: "High / Tinggi", 3: "Very High / Sangat Tinggi"}.get(pred, "Unknown")
+    return {
+        0: "Low / Rendah",
+        1: "Moderate / Sedang",
+        2: "High / Tinggi",
+        3: "Very High / Sangat Tinggi"
+    }.get(pred, "Unknown")
 
 risk_styles = {
     "Low / Rendah": ("white", "blue"),
@@ -67,19 +71,9 @@ scaler = load_scaler()
 
 # === LOAD DATA TANPA CACHE ===
 def load_data():
-
-
-# Alat 1   
-#   url = "https://docs.google.com/spreadsheets/d/1ZscUJ6SLPIF33t8ikVHUmR68b-y3Q9_r_p9d2rDRMCM/export?format=csv"
-#   return pd.read_csv(url)
-
-# Alat 2  
+    # Google Sheets baru (format CSV)
     url = "https://docs.google.com/spreadsheets/d/1epkIp2U1okjCfXOoz_bkgey4kYa30EtmWlLB6c_911Y/export?format=csv"
     return pd.read_csv(url)
-
-
-
-
 
 # === HEADER ===
 col1, col2 = st.columns([1, 9])
@@ -118,59 +112,67 @@ with realtime:
 
     st.markdown("<div class='section-title'>Hasil Prediksi Data Realtime</div>", unsafe_allow_html=True)
 
-if df is not None and not df.empty:
-    df = df.rename(columns={
-        'Timestamp': 'Waktu',
-        'Suhu': 'Tavg: Temperatur rata-rata (°C)',
-        'Kelembapan Udara': 'RH_avg: Kelembapan rata-rata (%)',
-        'Curah Hujan': 'RR: Curah hujan (mm)',
-        'Kecepatan Angin': 'ff_avg: Kecepatan angin rata-rata (m/s)',
-        'Kelembapan Tanah': 'Kelembaban Permukaan Tanah',
-    })
+    if df is None or df.empty:
+        st.warning("Data belum tersedia atau kosong di Google Sheets.")
+    else:
+        # Samakan nama kolom dari sheet -> nama kanonik yang dipakai model
+        df = df.rename(columns={
+            'Timestamp': 'Waktu',
+            'Suhu': 'Tavg: Temperatur rata-rata (°C)',
+            'Kelembapan Udara': 'RH_avg: Kelembapan rata-rata (%)',
+            'Curah Hujan': 'RR: Curah hujan (mm)',
+            'Kecepatan Angin': 'ff_avg: Kecepatan angin rata-rata (m/s)',
+            'Kelembapan Tanah': 'Kelembaban Permukaan Tanah',
+        })
 
-    fitur = [
-        'Tavg: Temperatur rata-rata (°C)',
-        'RH_avg: Kelembapan rata-rata (%)',
-        'RR: Curah hujan (mm)',
-        'ff_avg: Kecepatan angin rata-rata (m/s)',
-        'Kelembaban Permukaan Tanah'
-    ]
+        fitur = [
+            'Tavg: Temperatur rata-rata (°C)',
+            'RH_avg: Kelembapan rata-rata (%)',
+            'RR: Curah hujan (mm)',
+            'ff_avg: Kecepatan angin rata-rata (m/s)',
+            'Kelembaban Permukaan Tanah'
+        ]
 
-# pilih kolom fitur
-clean_df = df[fitur].copy()
+        # Pastikan semua kolom fitur ada
+        missing = [c for c in fitur + ['Waktu'] if c not in df.columns]
+        if missing:
+            st.error("Kolom wajib tidak ditemukan di Sheets: " + ", ".join(missing))
+            st.dataframe(df.head(), use_container_width=True)
+            st.stop()
 
-# konversi koma -> titik dan jadikan float
-for col in fitur:
-    clean_df[col] = (
-        clean_df[col]
-            .astype(str)
-            .str.replace(',', '.', regex=False)
-            .astype(float)
-            .fillna(0)
-    )
+        # Siapkan fitur numerik (ganti koma -> titik, cast ke float)
+        clean_df = df[fitur].copy()
+        for col in fitur:
+            clean_df[col] = (
+                clean_df[col].astype(str)
+                .str.replace(',', '.', regex=False)
+                .astype(float)
+                .fillna(0)
+            )
+        clean_df = clean_df.apply(pd.to_numeric, errors='coerce').fillna(0)
 
-# pengaman tambahan (jika masih ada string nyasar)
-clean_df = clean_df.apply(pd.to_numeric, errors='coerce').fillna(0)
+        # Prediksi
+        scaled_all = scaler.transform(clean_df)
+        predictions = [convert_to_label(p) for p in model.predict(scaled_all)]
+        df["Prediksi Kebakaran"] = predictions
 
-# ---- ini SUDAH DI LUAR loop for ----
-scaled_all = scaler.transform(clean_df)
-predictions = [convert_to_label(p) for p in model.predict(scaled_all)]
-df["Prediksi Kebakaran"] = predictions
+        # Baris terakhir untuk ringkasan
+        last_row = df.iloc[-1]
+        waktu = pd.to_datetime(last_row['Waktu'])
+        hari = convert_day_to_indonesian(waktu.strftime('%A'))
+        bulan = convert_month_to_indonesian(waktu.strftime('%B'))
+        tanggal = waktu.strftime(f'%d {bulan} %Y')
+        risk_label = last_row["Prediksi Kebakaran"]
+        font, bg = risk_styles.get(risk_label, ("black", "white"))
 
-last_row = df.iloc[-1]
-waktu = pd.to_datetime(last_row['Waktu'])
-hari = convert_day_to_indonesian(waktu.strftime('%A'))
-bulan = convert_month_to_indonesian(waktu.strftime('%B'))
-tanggal = waktu.strftime(f'%d {bulan} %Y')
-risk_label = last_row["Prediksi Kebakaran"]
-font, bg = risk_styles.get(risk_label, ("black", "white"))
+        sensor_df = pd.DataFrame({
+            "Variabel": fitur,
+            "Value": [f"{last_row[col]:.1f}" for col in fitur]
+        })
 
-sensor_df = pd.DataFrame({
-    "Variabel": fitur,
-    "Value": [f"{last_row[col]:.1f}" for col in fitur]
-})
+        # 3 kolom tampilan
+        col_kiri, col_tengah, col_kanan = st.columns([1.2, 1.2, 1.2])
 
-col_kiri, col_tengah, col_kanan = st.columns([1.2, 1.2, 1.2])
         with col_kiri:
             st.markdown("<h5 style='text-align: center;'>Data Sensor Realtime</h5>", unsafe_allow_html=True)
             sensor_html = "<table style='width: 100%; border-collapse: collapse;'>"
@@ -181,7 +183,7 @@ col_kiri, col_tengah, col_kanan = st.columns([1.2, 1.2, 1.2])
                 sensor_html += f"<tr><td style='padding:6px;'>{var}</td><td style='padding:6px;'>{val}</td></tr>"
             sensor_html += "</tbody></table>"
             st.markdown(sensor_html, unsafe_allow_html=True)
-        
+
             st.markdown(
                 f"<p style='background-color:{bg}; color:{font}; padding:10px; border-radius:8px; font-weight:bold;'>"
                 f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran: "
@@ -190,10 +192,14 @@ col_kiri, col_tengah, col_kanan = st.columns([1.2, 1.2, 1.2])
             )
 
         with col_tengah:
-
             st.markdown("<h5 style='text-align: center;'>Visualisasi Peta Lokasi Prediksi Kebakaran</h5>", unsafe_allow_html=True)
             pekanbaru_coords = [-0.5071, 101.4478]
-            color_map = {"Low / Rendah": "blue", "Moderate / Sedang": "green", "High / Tinggi": "orange", "Very High / Sangat Tinggi": "red"}
+            color_map = {
+                "Low / Rendah": "blue",
+                "Moderate / Sedang": "green",
+                "High / Tinggi": "orange",
+                "Very High / Sangat Tinggi": "red"
+            }
             marker_color = color_map.get(risk_label, "gray")
 
             popup_text = folium.Popup(f"""
@@ -217,20 +223,18 @@ col_kiri, col_tengah, col_kanan = st.columns([1.2, 1.2, 1.2])
                 fill_color=marker_color,
                 fill_opacity=0.3
             ).add_to(m)
-            folium.Marker(location=pekanbaru_coords, popup=popup_text,
-                          icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m)
+            folium.Marker(
+                location=pekanbaru_coords,
+                popup=popup_text,
+                icon=folium.Icon(color=marker_color, icon="info-sign")
+            ).add_to(m)
 
             folium_static(m, width=450, height=350)
 
-
         with col_kanan:
-        
             st.markdown("<h5 style='text-align: center;'>IoT Smart Fire Prediction</h5>", unsafe_allow_html=True)
-            from PIL import Image
             image = Image.open("forestiot4.jpg")
             st.image(image.resize((480, 360)))
-
-
 
 # === TABEL TINGKAT RISIKO ===
 st.markdown("<div class='section-title'>Tabel Tingkat Resiko dan Intensitas Kebakaran</div>", unsafe_allow_html=True)
@@ -262,46 +266,32 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
-
 # === TAMPILKAN DATA LENGKAP ===
 st.markdown("<div class='section-title'>Data Sensor Lengkap</div>", unsafe_allow_html=True)
-
-# Tampilkan seluruh data sensor + prediksi
-st.dataframe(df, use_container_width=True)
+st.dataframe(df if 'df' in locals() else pd.DataFrame(), use_container_width=True)
 
 # Tombol untuk download sebagai file Excel
-from io import BytesIO
-import base64
-
-def to_excel(df):
+def to_excel(df_to_save: pd.DataFrame) -> bytes:
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
-    df.to_excel(writer, index=False, sheet_name='Prediksi')
+    df_to_save.to_excel(writer, index=False, sheet_name='Prediksi')
     writer.close()
-    processed_data = output.getvalue()
-    return processed_data
+    return output.getvalue()
 
-df_xlsx = to_excel(df)
-
-st.download_button(
-    label="📥 Download Hasil Prediksi Kebakaran sebagai XLSX",
-    data=df_xlsx,
-    file_name="hasil_prediksi_kebakaran.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
-
-
-
+if 'df' in locals() and not df.empty:
+    df_xlsx = to_excel(df)
+    st.download_button(
+        label="📥 Download Hasil Prediksi Kebakaran sebagai XLSX",
+        data=df_xlsx,
+        file_name="hasil_prediksi_kebakaran.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # === PREDIKSI MANUAL ===
 st.markdown("<div class='section-title'>Pengujian Menggunakan Data Meteorologi Manual</div>", unsafe_allow_html=True)
 
 if "manual_input" not in st.session_state:
-    st.session_state.manual_input = {
-        "suhu": 30.0, "kelembapan": 65.0, "curah": 10.0, "angin": 3.0, "tanah": 50.0
-    }
+    st.session_state.manual_input = {"suhu": 30.0, "kelembapan": 65.0, "curah": 10.0, "angin": 3.0, "tanah": 50.0}
 if "manual_result" not in st.session_state:
     st.session_state.manual_result = None
 
@@ -327,15 +317,11 @@ with btn_pred:
         }])
         scaled_manual = scaler.transform(input_df)
         st.session_state.manual_result = convert_to_label(model.predict(scaled_manual)[0])
-        st.session_state.manual_input.update({
-            "suhu": suhu, "kelembapan": kelembapan, "curah": curah, "angin": angin, "tanah": tanah
-        })
+        st.session_state.manual_input.update({"suhu": suhu, "kelembapan": kelembapan, "curah": curah, "angin": angin, "tanah": tanah})
 
 with btn_reset:
     if st.button("🧼 Reset Manual"):
-        st.session_state.manual_input = {
-            "suhu": 0.0, "kelembapan": 0.0, "curah": 0.0, "angin": 0.0, "tanah": 0.0
-        }
+        st.session_state.manual_input = {"suhu": 0.0, "kelembapan": 0.0, "curah": 0.0, "angin": 0.0, "tanah": 0.0}
         st.session_state.manual_result = None
         st.experimental_rerun()
 
@@ -355,8 +341,7 @@ if "text_input" not in st.session_state:
 if "text_result" not in st.session_state:
     st.session_state.text_result = None
 
-input_text = st.text_area("Masukkan deskripsi lingkungan:", 
-                          value=st.session_state.text_input, height=120)
+input_text = st.text_area("Masukkan deskripsi lingkungan:", value=st.session_state.text_input, height=120)
 
 btn_pred_text, btn_reset_text, _ = st.columns([1, 1, 8])
 with btn_pred_text:
@@ -401,15 +386,3 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
-
-
-
-
-
-
-
-
-
-
-
-
