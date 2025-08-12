@@ -74,7 +74,7 @@ def load_data():
 #   return pd.read_csv(url)
 
 # Alat 2  
-    url = "https://docs.google.com/spreadsheets/d/1epkIp2U1okjCfXOoz_bkgey4kYa30EtmWlLB6c_911Y/export?format=csv""
+    url = "https://docs.google.com/spreadsheets/d/1epkIp2U1okjCfXOoz_bkgey4kYa30EtmWlLB6c_911Y/export?format=csv"
     return pd.read_csv(url)
 
 
@@ -388,6 +388,7 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
