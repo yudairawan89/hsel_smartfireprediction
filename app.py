@@ -73,11 +73,15 @@ def load_scaler():
 model = load_model()
 scaler = load_scaler()
 
+# === KONFIG GOOGLE SHEET ===
+SHEET_ID = "1ZscUJ6SLPIF33t8ikVHUmR68b-y3Q9_r_p9d2rDRMCM"
+SHEET_EDIT_LINK = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit?usp=sharing"
+SHEET_CSV_LINK = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
+
 # === LOAD DATA TANPA CACHE ===
 def load_data():
-    # Google Sheets baru (format CSV)
-    url = "https://docs.google.com/spreadsheets/d/1epkIp2U1okjCfXOoz_bkgey4kYa30EtmWlLB6c_911Y/export?format=csv"
-    return pd.read_csv(url)
+    # Membaca dari Google Sheets (CSV export)
+    return pd.read_csv(SHEET_CSV_LINK)
 
 # === HEADER ===
 col1, col2 = st.columns([1, 9])
@@ -98,8 +102,8 @@ with col2:
     col_btn = st.columns([10, 1])[1]
     with col_btn:
         st.markdown(
-            """
-            <a href='https://docs.google.com/spreadsheets/d/1epkIp2U1okjCfXOoz_bkgey4kYa30EtmWlLB6c_911Y/edit?gid=0#gid=0' target='_blank'>
+            f"""
+            <a href='{SHEET_EDIT_LINK}' target='_blank'>
             <button style='padding: 6px 16px; background-color: #1f77b4; color: white; border: none; border-radius: 4px; cursor: pointer;'>Data Cloud</button>
             </a>
             """,
@@ -119,15 +123,35 @@ with realtime:
     if df is None or df.empty:
         st.warning("Data belum tersedia atau kosong di Google Sheets.")
     else:
-        # Samakan nama kolom dari sheet -> nama kanonik yang dipakai model
-        df = df.rename(columns={
-            'Timestamp': 'Waktu',
-            'Suhu': 'Tavg: Temperatur rata-rata (°C)',
-            'Kelembapan Udara': 'RH_avg: Kelembapan rata-rata (%)',
-            'Curah Hujan': 'RR: Curah hujan (mm)',
-            'Kecepatan Angin': 'ff_avg: Kecepatan angin rata-rata (m/s)',
-            'Kelembapan Tanah': 'Kelembaban Permukaan Tanah',
-        })
+        # ======= PENYESUAIAN KOLUMNISASI DARI SHEET =======
+        # Header yang diharapkan pada sheet (sesuai gambar):
+        # Waktu | Suhu Udara | Kelembapan Udara | Curah Hujan/Jam | Kecepatan Angin (ms) | Kelembapan Tanah
+
+        # Normalisasi nama kolom (trim spasi)
+        df.columns = [c.strip() for c in df.columns]
+
+        # Pemetaan kandidat -> nama kanonik model
+        rename_map_candidates = {
+            'Waktu': ['Waktu', 'Timestamp', 'Time'],
+            'Tavg: Temperatur rata-rata (°C)': ['Suhu Udara', 'Suhu', 'Temperatur', 'Suhu (°C)'],
+            'RH_avg: Kelembapan rata-rata (%)': ['Kelembapan Udara', 'Kelembapan', 'RH (%)'],
+            'RR: Curah hujan (mm)': ['Curah Hujan/Jam', 'Curah Hujan', 'RR', 'Curah Hujan (mm)'],
+            'ff_avg: Kecepatan angin rata-rata (m/s)': ['Kecepatan Angin (ms)', 'Kecepatan Angin', 'Angin (m/s)', 'ff_avg'],
+            'Kelembaban Permukaan Tanah': ['Kelembapan Tanah', 'Kelembaban Tanah', 'Soil Moisture']
+        }
+
+        # Bangun peta rename aktual berdasarkan kolom yang tersedia
+        actual_rename = {}
+        for target_name, candidates in rename_map_candidates.items():
+            found = None
+            for cand in candidates:
+                if cand in df.columns:
+                    found = cand
+                    break
+            if found is not None:
+                actual_rename[found] = target_name
+
+        df = df.rename(columns=actual_rename)
 
         fitur = [
             'Tavg: Temperatur rata-rata (°C)',
@@ -137,7 +161,7 @@ with realtime:
             'Kelembaban Permukaan Tanah'
         ]
 
-        # Pastikan semua kolom fitur ada
+        # Pastikan semua kolom fitur + Waktu ada
         missing = [c for c in fitur + ['Waktu'] if c not in df.columns]
         if missing:
             st.error("Kolom wajib tidak ditemukan di Sheets: " + ", ".join(missing))
@@ -163,10 +187,21 @@ with realtime:
         # Baris terakhir untuk ringkasan
         last_row = df.iloc[-1]
         last_num = clean_df.iloc[-1]  # versi numerik untuk formatting
-        waktu = pd.to_datetime(last_row['Waktu'])
-        hari = convert_day_to_indonesian(waktu.strftime('%A'))
-        bulan = convert_month_to_indonesian(waktu.strftime('%B'))
-        tanggal = waktu.strftime(f'%d {bulan} %Y')
+        waktu = pd.to_datetime(last_row['Waktu'], errors='coerce')
+        if pd.isna(waktu):
+            # fallback jika format waktu tidak kompatibel
+            try:
+                waktu = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
+            except Exception:
+                waktu = None
+
+        if isinstance(waktu, pd.Timestamp):
+            hari = convert_day_to_indonesian(waktu.strftime('%A'))
+            bulan = convert_month_to_indonesian(waktu.strftime('%B'))
+            tanggal = waktu.strftime(f'%d {bulan} %Y')
+        else:
+            hari, tanggal = "-", str(last_row['Waktu'])
+
         risk_label = last_row["Prediksi Kebakaran"]
         font, bg = risk_styles.get(risk_label, ("black", "white"))
 
@@ -238,8 +273,11 @@ with realtime:
 
         with col_kanan:
             st.markdown("<h5 style='text-align: center;'>IoT Smart Fire Prediction</h5>", unsafe_allow_html=True)
-            image = Image.open("forestiot4.jpg")
-            st.image(image.resize((480, 360)))
+            try:
+                image = Image.open("forestiot4.jpg")
+                st.image(image.resize((480, 360)))
+            except Exception:
+                st.info("Gambar 'forestiot4.jpg' tidak ditemukan di direktori aplikasi.")
 
 # === TABEL TINGKAT RISIKO ===
 st.markdown("<div class='section-title'>Tabel Tingkat Resiko dan Intensitas Kebakaran</div>", unsafe_allow_html=True)
@@ -391,4 +429,3 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
-
