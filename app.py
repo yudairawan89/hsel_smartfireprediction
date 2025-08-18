@@ -64,7 +64,7 @@ risk_styles = {
 # === LOAD MODEL DAN SCALER ===
 @st.cache_resource
 def load_model():
-    return joblib.load("RHSEM_IoT_Model.joblib")
+    return joblib.load("HSEL_IoT_Model.joblib")
 
 @st.cache_resource
 def load_scaler():
@@ -391,3 +391,4 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
+
