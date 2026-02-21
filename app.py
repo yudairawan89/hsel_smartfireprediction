@@ -233,7 +233,7 @@ with realtime:
 
         with col_tengah:
             st.markdown("<h5 style='text-align: center;'>Visualisasi Peta Lokasi Prediksi Kebakaran</h5>", unsafe_allow_html=True)
-            pekanbaru_coords = [-0.5071, 101.4478]
+            pekanbaru_coords = [-0.959240, 100.396000]
             color_map = {
                 "Low / Rendah": "blue",
                 "Moderate / Sedang": "green",
@@ -429,3 +429,4 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
+
