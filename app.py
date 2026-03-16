@@ -139,15 +139,6 @@ fitur=[
 "Kelembaban Permukaan Tanah"
 ]
 
-missing=[c for c in fitur if c not in df.columns]
-
-if missing:
-    st.error("Kolom berikut tidak ditemukan di Google Sheets:")
-    st.write(missing)
-    st.write("Kolom tersedia:",df.columns)
-    st.stop()
-
-# ================= PREPROCESS =================
 clean_df=df[fitur].apply(pd.to_numeric,errors="coerce").fillna(0)
 
 scaled=scaler.transform(clean_df)
@@ -160,17 +151,9 @@ risk=last["Prediksi Kebakaran"]
 
 font,bg=risk_styles.get(risk,("black","white"))
 
-waktu=pd.to_datetime(last["Waktu"],errors="coerce")
-
-hari=convert_day(waktu.strftime("%A"))
-bulan=convert_month(waktu.strftime("%B"))
-
-tanggal=waktu.strftime(f"%d {bulan} %Y")
-
 # ================= DASHBOARD =================
 col1,col2,col3=st.columns([1.2,1.2,1.2])
 
-# ================= SENSOR =================
 with col1:
 
     st.subheader("Data Sensor Realtime")
@@ -185,153 +168,12 @@ with col1:
     st.markdown(
     f"""
 <p style='background-color:{bg};color:{font};padding:10px;border-radius:8px;font-weight:bold;'>
-Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran:
+Tingkat Risiko Kebakaran:
 <span style='font-size:22px;text-decoration:underline'>{risk}</span>
 </p>
 """,
     unsafe_allow_html=True
     )
-
-    # ================= TINDAK LANJUT =================
-    with st.expander("Tindak Lanjut Instansi"):
-
-        if risk=="Low / Rendah":
-            st.markdown("""
-**Kondisi**
-Risiko kebakaran rendah.
-
-**Tindakan**
-• Monitoring rutin kondisi lingkungan  
-• Patroli berkala ringan  
-• Edukasi preventif kepada masyarakat  
-• Dokumentasi kondisi normal
-""")
-
-        elif risk=="Moderate / Sedang":
-            st.markdown("""
-**Kondisi**
-Risiko kebakaran sedang.
-
-**Tindakan**
-• Peningkatan frekuensi patroli  
-• Peringatan dini kepada masyarakat  
-• Koordinasi BPBD dan aparat desa  
-• Pengawasan aktivitas pembakaran terbuka
-""")
-
-        elif risk=="High / Tinggi":
-            st.markdown("""
-**Kondisi**
-Risiko kebakaran tinggi.
-
-**Tindakan**
-• Aktivasi pos siaga lokal  
-• Penempatan personel siaga  
-• Koordinasi TNI/Polri dan Manggala Agni  
-• Penyiapan alat pemadaman awal
-""")
-
-        elif risk=="Very High / Sangat Tinggi":
-            st.markdown("""
-**Kondisi**
-Risiko kebakaran sangat tinggi.
-
-**Tindakan**
-• Aktivasi posko tanggap darurat  
-• Mobilisasi tim pemadam  
-• Koordinasi lintas sektor  
-• Penyiapan logistik darurat  
-• Rekomendasi Operasi Modifikasi Cuaca
-""")
-
-# ================= MAP =================
-with col2:
-
-    st.subheader("Visualisasi Peta Lokasi")
-
-    coords=[-0.959240,100.396000]
-
-    m=folium.Map(location=coords,zoom_start=11)
-
-    folium.Circle(
-        location=coords,
-        radius=3000,
-        color="green",
-        fill=True
-    ).add_to(m)
-
-    folium.Marker(coords).add_to(m)
-
-    folium_static(m,width=450,height=350)
-
-# ================= IOT IMAGE =================
-with col3:
-
-    st.subheader("IoT Smart Fire Prediction")
-
-    try:
-        image=Image.open("forestiot4.jpg")
-        st.image(image)
-    except:
-        st.info("Gambar tidak ditemukan")
-
-# ================= TABEL RISIKO =================
-st.markdown("<div class='section-title'>Tabel Tingkat Resiko dan Intensitas Kebakaran</div>",unsafe_allow_html=True)
-
-st.markdown("""
-<table>
-<tr>
-<th>Warna</th>
-<th>Tingkat Risiko</th>
-<th>Keterangan</th>
-</tr>
-
-<tr style='background-color:blue;color:white'>
-<td>Blue</td>
-<td>Low / Rendah</td>
-<td>Risiko kebakaran rendah dan api mudah dikendalikan.</td>
-</tr>
-
-<tr style='background-color:green;color:white'>
-<td>Green</td>
-<td>Moderate / Sedang</td>
-<td>Risiko kebakaran sedang dan masih dapat dikendalikan.</td>
-</tr>
-
-<tr style='background-color:yellow;color:black'>
-<td>Yellow</td>
-<td>High / Tinggi</td>
-<td>Risiko kebakaran tinggi dan api sulit dikendalikan.</td>
-</tr>
-
-<tr style='background-color:red;color:white'>
-<td>Red</td>
-<td>Very High / Sangat Tinggi</td>
-<td>Risiko kebakaran sangat tinggi dan api sangat sulit dikendalikan.</td>
-</tr>
-
-</table>
-""",unsafe_allow_html=True)
-
-# ================= DATA SENSOR =================
-st.markdown("<div class='section-title'>Data Sensor Lengkap</div>",unsafe_allow_html=True)
-
-st.dataframe(df,use_container_width=True)
-
-# ================= DOWNLOAD =================
-def to_excel(data):
-
-    output=BytesIO()
-    writer=pd.ExcelWriter(output,engine="xlsxwriter")
-    data.to_excel(writer,index=False)
-    writer.close()
-    return output.getvalue()
-
-st.download_button(
-"Download Hasil Prediksi",
-to_excel(df),
-"hasil_prediksi.xlsx"
-)
 
 # ================= MANUAL TEST =================
 st.markdown("<div class='section-title'>Pengujian Menggunakan Data Meteorologi Manual</div>",unsafe_allow_html=True)
@@ -363,7 +205,17 @@ if st.button("Prediksi Manual"):
 
     hasil=convert_label(model.predict(scaled)[0])
 
-    st.success(f"Hasil Prediksi Risiko Kebakaran: {hasil}")
+    font,bg=risk_styles.get(hasil,("black","white"))
+
+    st.markdown(
+    f"""
+<p style='background-color:{bg};color:{font};padding:12px;border-radius:8px;font-weight:bold;'>
+Hasil Prediksi Risiko Kebakaran:
+<span style='font-size:22px;text-decoration:underline'>{hasil}</span>
+</p>
+""",
+    unsafe_allow_html=True
+    )
 
 # ================= TEXT TEST =================
 st.markdown("<div class='section-title'>Pengujian Menggunakan Data Teks</div>",unsafe_allow_html=True)
@@ -373,6 +225,7 @@ text_input=st.text_area("Masukkan deskripsi kondisi lingkungan")
 if st.button("Prediksi Teks"):
 
     try:
+
         vectorizer=joblib.load("tfidf_vectorizer.joblib")
         model_text=joblib.load("stacking_text_model.joblib")
 
@@ -382,16 +235,17 @@ if st.button("Prediksi Teks"):
 
         hasil=convert_label(pred)
 
-        st.success(f"Hasil Prediksi Risiko Kebakaran: {hasil}")
+        font,bg=risk_styles.get(hasil,("black","white"))
+
+        st.markdown(
+        f"""
+<p style='background-color:{bg};color:{font};padding:12px;border-radius:8px;font-weight:bold;'>
+Hasil Prediksi Risiko Kebakaran:
+<span style='font-size:22px;text-decoration:underline'>{hasil}</span>
+</p>
+""",
+        unsafe_allow_html=True
+        )
 
     except:
         st.error("Model teks belum tersedia")
-
-# ================= FOOTER =================
-st.markdown("""
-<hr>
-<center>
-<b>Smart Fire Prediction HSEL Model</b><br>
-Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026
-</center>
-""",unsafe_allow_html=True)
