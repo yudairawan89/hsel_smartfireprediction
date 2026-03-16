@@ -2,66 +2,64 @@ import streamlit as st
 import pandas as pd
 import joblib
 from streamlit_autorefresh import st_autorefresh
-from datetime import datetime
 from io import BytesIO
 from streamlit_folium import folium_static
 import folium
 from PIL import Image
 
-# === PAGE CONFIG ===
-st.set_page_config(page_title="Smart Fire Prediction HSEL", page_icon="favicon.ico", layout="wide")
+# ================= PAGE CONFIG =================
+st.set_page_config(
+    page_title="Smart Fire Prediction HSEL",
+    page_icon="favicon.ico",
+    layout="wide"
+)
 
-# === STYLE KUSTOM ===
+# ================= STYLE =================
 st.markdown("""
-    <style>
-    .main {background-color: #F9F9F9;}
-    table {width: 100%; border-collapse: collapse;}
-    th, td {border: 1px solid #ddd; padding: 8px;}
-    th {background-color: #e0e0e0; text-align: center;}
-    td {text-align: center;}
-    .section-title {
-        background-color: #1f77b4;
-        color: white;
-        padding: 10px;
-        border-radius: 6px;
-        font-weight: bold;
-    }
-    .scrollable-table { overflow-x: auto; }
-    </style>
+<style>
+.main {background-color:#F9F9F9;}
+.section-title{
+background-color:#1f77b4;
+color:white;
+padding:10px;
+border-radius:6px;
+font-weight:bold;
+}
+</style>
 """, unsafe_allow_html=True)
 
-# === FUNGSI BANTUAN ===
-def convert_day_to_indonesian(day_name):
+# ================= HELPER =================
+def convert_day(day):
     return {
-        'Monday': 'Senin','Tuesday': 'Selasa','Wednesday': 'Rabu',
-        'Thursday': 'Kamis','Friday': 'Jumat','Saturday': 'Sabtu',
-        'Sunday': 'Minggu'
-    }.get(day_name, day_name)
+        "Monday":"Senin","Tuesday":"Selasa","Wednesday":"Rabu",
+        "Thursday":"Kamis","Friday":"Jumat","Saturday":"Sabtu",
+        "Sunday":"Minggu"
+    }.get(day,day)
 
-def convert_month_to_indonesian(month_name):
+def convert_month(month):
     return {
-        'January': 'Januari','February': 'Februari','March': 'Maret',
-        'April': 'April','May': 'Mei','June': 'Juni','July': 'Juli',
-        'August': 'Agustus','September': 'September','October': 'Oktober',
-        'November': 'November','December': 'Desember'
-    }.get(month_name, month_name)
+        "January":"Januari","February":"Februari","March":"Maret",
+        "April":"April","May":"Mei","June":"Juni",
+        "July":"Juli","August":"Agustus","September":"September",
+        "October":"Oktober","November":"November","December":"Desember"
+    }.get(month,month)
 
-def convert_to_label(pred):
+def convert_label(pred):
     return {
-        0: "Low / Rendah",
-        1: "Moderate / Sedang",
-        2: "High / Tinggi",
-        3: "Very High / Sangat Tinggi"
-    }.get(pred, "Unknown")
+        0:"Low / Rendah",
+        1:"Moderate / Sedang",
+        2:"High / Tinggi",
+        3:"Very High / Sangat Tinggi"
+    }.get(pred,"Unknown")
 
-risk_styles = {
-    "Low / Rendah": ("white", "blue"),
-    "Moderate / Sedang": ("white", "green"),
-    "High / Tinggi": ("black", "yellow"),
-    "Very High / Sangat Tinggi": ("white", "red")
+risk_styles={
+"Low / Rendah":("white","blue"),
+"Moderate / Sedang":("white","green"),
+"High / Tinggi":("black","yellow"),
+"Very High / Sangat Tinggi":("white","red")
 }
 
-# === LOAD MODEL ===
+# ================= LOAD MODEL =================
 @st.cache_resource
 def load_model():
     return joblib.load("HSEL_IoT_Model.joblib")
@@ -70,99 +68,136 @@ def load_model():
 def load_scaler():
     return joblib.load("scaler.joblib")
 
-model = load_model()
-scaler = load_scaler()
+model=load_model()
+scaler=load_scaler()
 
-# === GOOGLE SHEETS ===
-SHEET_ID = "1ZscUJ6SLPIF33t8ikVHUmR68b-y3Q9_r_p9d2rDRMCM"
-SHEET_CSV_LINK = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
+# ================= GOOGLE SHEETS =================
+SHEET_ID="1ZscUJ6SLPIF33t8ikVHUmR68b-y3Q9_r_p9d2rDRMCM"
+CSV_LINK=f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
 
 def load_data():
-    return pd.read_csv(SHEET_CSV_LINK)
+    return pd.read_csv(CSV_LINK)
 
-# === HEADER ===
-col1, col2 = st.columns([1,9])
+# ================= HEADER =================
+col1,col2=st.columns([1,9])
 
 with col1:
-    st.image("logo.png", width=170)
+    st.image("logo.png",width=160)
 
 with col2:
     st.markdown("""
     <h2>Smart Fire Prediction HSEL Model</h2>
-    Sistem ini menggunakan Hybrid Stacking Ensemble Learning (HSEL) untuk memprediksi risiko kebakaran hutan secara real-time.
-    """, unsafe_allow_html=True)
+    Sistem prediksi risiko kebakaran hutan berbasis Hybrid Stacking Ensemble Learning (HSEL)
+    yang terintegrasi dengan data sensor IoT secara real-time.
+    """,unsafe_allow_html=True)
 
-st.markdown("<hr>", unsafe_allow_html=True)
+st.markdown("<hr>",unsafe_allow_html=True)
 
-# === REALTIME ===
+# ================= AUTO REFRESH =================
 st_autorefresh(interval=7000)
 
-df = load_data()
+# ================= LOAD DATA =================
+df=load_data()
 
-st.markdown("<div class='section-title'>Hasil Prediksi Data Realtime</div>", unsafe_allow_html=True)
+st.markdown("<div class='section-title'>Hasil Prediksi Data Realtime</div>",unsafe_allow_html=True)
 
-if df is not None and not df.empty:
+if df is None or df.empty:
+    st.warning("Data sensor belum tersedia.")
+    st.stop()
 
-    fitur = [
-        'Tavg: Temperatur rata-rata (°C)',
-        'RH_avg: Kelembapan rata-rata (%)',
-        'RR: Curah hujan (mm)',
-        'ff_avg: Kecepatan angin rata-rata (m/s)',
-        'Kelembaban Permukaan Tanah'
-    ]
+# ================= NORMALISASI KOLOM =================
+df.columns=[c.strip() for c in df.columns]
 
-    clean_df = df[fitur].astype(float).fillna(0)
+rename_map={
+"Suhu Udara":"Tavg: Temperatur rata-rata (°C)",
+"Suhu":"Tavg: Temperatur rata-rata (°C)",
+"Temperatur":"Tavg: Temperatur rata-rata (°C)",
 
-    scaled = scaler.transform(clean_df)
+"Kelembapan Udara":"RH_avg: Kelembapan rata-rata (%)",
+"Kelembapan":"RH_avg: Kelembapan rata-rata (%)",
 
-    df["Prediksi Kebakaran"] = [convert_to_label(p) for p in model.predict(scaled)]
+"Curah Hujan":"RR: Curah hujan (mm)",
+"Curah Hujan/Jam":"RR: Curah hujan (mm)",
 
-    last_row = df.iloc[-1]
+"Kecepatan Angin":"ff_avg: Kecepatan angin rata-rata (m/s)",
+"Kecepatan Angin (ms)":"ff_avg: Kecepatan angin rata-rata (m/s)",
 
-    risk_label = last_row["Prediksi Kebakaran"]
+"Kelembapan Tanah":"Kelembaban Permukaan Tanah",
+"Soil Moisture":"Kelembaban Permukaan Tanah"
+}
 
-    font, bg = risk_styles.get(risk_label, ("black","white"))
+df=df.rename(columns=rename_map)
 
-    waktu = pd.to_datetime(last_row['Waktu'])
+fitur=[
+"Tavg: Temperatur rata-rata (°C)",
+"RH_avg: Kelembapan rata-rata (%)",
+"RR: Curah hujan (mm)",
+"ff_avg: Kecepatan angin rata-rata (m/s)",
+"Kelembaban Permukaan Tanah"
+]
 
-    hari = convert_day_to_indonesian(waktu.strftime('%A'))
-    bulan = convert_month_to_indonesian(waktu.strftime('%B'))
+missing=[c for c in fitur if c not in df.columns]
 
-    tanggal = waktu.strftime(f'%d {bulan} %Y')
+if missing:
+    st.error("Kolom berikut tidak ditemukan di Google Sheets:")
+    st.write(missing)
+    st.write("Kolom yang tersedia:",df.columns)
+    st.stop()
 
-    col1,col2,col3 = st.columns([1.2,1.2,1.2])
+# ================= PREPROCESS =================
+clean_df=df[fitur].apply(pd.to_numeric,errors="coerce").fillna(0)
 
-# === DATA SENSOR ===
-    with col1:
+scaled=scaler.transform(clean_df)
 
-        sensor_df = pd.DataFrame({
-            "Variabel":fitur,
-            "Value":[f"{last_row[f]:.1f}" for f in fitur]
-        })
+df["Prediksi Kebakaran"]=[convert_label(p) for p in model.predict(scaled)]
 
-        st.subheader("Data Sensor Realtime")
+last=df.iloc[-1]
 
-        st.table(sensor_df)
+risk=last["Prediksi Kebakaran"]
 
-        st.markdown(
-        f"""
-        <p style='background-color:{bg};color:{font};padding:10px;border-radius:8px;font-weight:bold;'>
-        Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran:
-        <span style='font-size:22px;text-decoration:underline'>{risk_label}</span>
-        </p>
-        """,
-        unsafe_allow_html=True
-        )
+font,bg=risk_styles.get(risk,("black","white"))
 
-# === FITUR TINDAK LANJUT ===
-        with st.expander("Tindak Lanjut Instansi"):
+waktu=pd.to_datetime(last["Waktu"],errors="coerce")
 
-            if risk_label == "Low / Rendah":
+hari=convert_day(waktu.strftime("%A"))
+bulan=convert_month(waktu.strftime("%B"))
 
-                st.markdown("""
+tanggal=waktu.strftime(f"%d {bulan} %Y")
+
+# ================= DASHBOARD =================
+col1,col2,col3=st.columns([1.2,1.2,1.2])
+
+# ================= SENSOR =================
+with col1:
+
+    st.subheader("Data Sensor Realtime")
+
+    sensor_df=pd.DataFrame({
+    "Variabel":fitur,
+    "Value":[f"{last[f]:.1f}" for f in fitur]
+    })
+
+    st.table(sensor_df)
+
+    st.markdown(
+    f"""
+    <p style='background-color:{bg};color:{font};padding:10px;border-radius:8px;font-weight:bold;'>
+    Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran:
+    <span style='font-size:22px;text-decoration:underline'>{risk}</span>
+    </p>
+    """,
+    unsafe_allow_html=True
+    )
+
+    # ================= TINDAK LANJUT =================
+    with st.expander("Tindak Lanjut Instansi"):
+
+        if risk=="Low / Rendah":
+
+            st.markdown("""
 **Kondisi**
 
-Risiko kebakaran rendah dan api relatif mudah dikendalikan.
+Risiko kebakaran rendah.
 
 **Tindakan**
 
@@ -172,101 +207,108 @@ Risiko kebakaran rendah dan api relatif mudah dikendalikan.
 • Dokumentasi kondisi normal
 """)
 
-            elif risk_label == "Moderate / Sedang":
+        elif risk=="Moderate / Sedang":
 
-                st.markdown("""
+            st.markdown("""
 **Kondisi**
 
-Risiko kebakaran sedang dan terdapat indikasi peningkatan potensi kebakaran.
+Risiko kebakaran sedang.
 
 **Tindakan**
 
 • Peningkatan frekuensi patroli  
 • Peringatan dini terbatas kepada masyarakat  
-• Koordinasi internal BPBD dan aparat desa  
+• Koordinasi BPBD dan aparat desa  
 • Pengawasan aktivitas pembakaran terbuka
 """)
 
-            elif risk_label == "High / Tinggi":
+        elif risk=="High / Tinggi":
 
-                st.markdown("""
+            st.markdown("""
 **Kondisi**
 
-Risiko kebakaran tinggi dan api berpotensi meluas.
+Risiko kebakaran tinggi.
 
 **Tindakan**
 
-• Aktivasi pos siaga tingkat lokal  
-• Penempatan personel siaga di titik rawan  
-• Koordinasi dengan TNI, Polri, dan Manggala Agni  
-• Penyiapan peralatan pemadaman awal
+• Aktivasi pos siaga lokal  
+• Penempatan personel siaga  
+• Koordinasi TNI/Polri dan Manggala Agni  
+• Penyiapan alat pemadaman awal
 """)
 
-            elif risk_label == "Very High / Sangat Tinggi":
+        elif risk=="Very High / Sangat Tinggi":
 
-                st.markdown("""
+            st.markdown("""
 **Kondisi**
 
-Risiko kebakaran sangat tinggi dengan potensi eskalasi cepat.
+Risiko kebakaran sangat tinggi.
 
 **Tindakan**
 
-• Aktivasi penuh posko tanggap darurat  
-• Mobilisasi tim pemantauan dan pemadam  
+• Aktivasi posko tanggap darurat  
+• Mobilisasi tim pemadam  
 • Koordinasi lintas sektor  
 • Penyiapan logistik darurat  
 • Rekomendasi Operasi Modifikasi Cuaca
 """)
 
-# === MAP ===
-    with col2:
+# ================= MAP =================
+with col2:
 
-        st.subheader("Visualisasi Peta")
+    st.subheader("Visualisasi Peta Lokasi")
 
-        coords = [-0.959240,100.396000]
+    coords=[-0.959240,100.396000]
 
-        m = folium.Map(location=coords, zoom_start=11)
+    m=folium.Map(location=coords,zoom_start=11)
 
-        folium.Marker(coords).add_to(m)
+    folium.Circle(
+    location=coords,
+    radius=3000,
+    color="green",
+    fill=True
+    ).add_to(m)
 
-        folium_static(m,width=450,height=350)
+    folium.Marker(coords).add_to(m)
 
-# === GAMBAR IOT ===
-    with col3:
+    folium_static(m,width=450,height=350)
 
-        st.subheader("IoT Smart Fire Prediction")
+# ================= IOT IMAGE =================
+with col3:
 
-        image = Image.open("forestiot4.jpg")
+    st.subheader("IoT Smart Fire Prediction")
 
+    try:
+        image=Image.open("forestiot4.jpg")
         st.image(image)
+    except:
+        st.info("Gambar tidak ditemukan")
 
-# === DATA TABLE ===
-st.markdown("<div class='section-title'>Data Sensor Lengkap</div>", unsafe_allow_html=True)
+# ================= DATA TABLE =================
+st.markdown("<div class='section-title'>Data Sensor Lengkap</div>",unsafe_allow_html=True)
 
 st.dataframe(df,use_container_width=True)
 
-# === DOWNLOAD EXCEL ===
-def to_excel(df):
+# ================= DOWNLOAD =================
+def to_excel(data):
 
-    output = BytesIO()
+    output=BytesIO()
 
-    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    writer=pd.ExcelWriter(output,engine="xlsxwriter")
 
-    df.to_excel(writer,index=False)
+    data.to_excel(writer,index=False)
 
     writer.close()
 
     return output.getvalue()
 
-df_xlsx = to_excel(df)
-
 st.download_button(
-    label="Download Data Prediksi",
-    data=df_xlsx,
-    file_name="hasil_prediksi.xlsx"
+"Download Hasil Prediksi",
+to_excel(df),
+"hasil_prediksi.xlsx"
 )
 
-# === FOOTER ===
+# ================= FOOTER =================
 st.markdown("""
 <hr>
 <center>
