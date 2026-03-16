@@ -94,15 +94,23 @@ if df is None or df.empty:
 # ================= NORMALISASI KOLOM =================
 df.columns=[c.strip() for c in df.columns]
 
-rename_map={
-"Suhu Udara":"Tavg: Temperatur rata-rata (°C)",
-"Kelembapan Udara":"RH_avg: Kelembapan rata-rata (%)",
-"Curah Hujan":"RR: Curah hujan (mm)",
-"Kecepatan Angin":"ff_avg: Kecepatan angin rata-rata (m/s)",
-"Kelembapan Tanah":"Kelembaban Permukaan Tanah"
+rename_map_candidates = {
+'Tavg: Temperatur rata-rata (°C)': ['Suhu Udara','Suhu','Temperatur','Suhu (°C)'],
+'RH_avg: Kelembapan rata-rata (%)': ['Kelembapan Udara','Kelembapan','RH (%)'],
+'RR: Curah hujan (mm)': ['Curah Hujan','Curah Hujan/Jam','RR'],
+'ff_avg: Kecepatan angin rata-rata (m/s)': ['Kecepatan Angin','Kecepatan Angin (ms)','Angin (m/s)'],
+'Kelembaban Permukaan Tanah': ['Kelembapan Tanah','Soil Moisture']
 }
 
-df=df.rename(columns=rename_map)
+actual_rename={}
+
+for target, candidates in rename_map_candidates.items():
+    for cand in candidates:
+        if cand in df.columns:
+            actual_rename[cand]=target
+            break
+
+df=df.rename(columns=actual_rename)
 
 fitur=[
 "Tavg: Temperatur rata-rata (°C)",
@@ -112,6 +120,15 @@ fitur=[
 "Kelembaban Permukaan Tanah"
 ]
 
+missing=[c for c in fitur if c not in df.columns]
+
+if missing:
+    st.error("Kolom berikut tidak ditemukan di Google Sheets:")
+    st.write(missing)
+    st.write("Kolom yang tersedia:",df.columns)
+    st.stop()
+
+# ================= PREPROCESS =================
 clean_df=df[fitur].apply(pd.to_numeric,errors="coerce").fillna(0)
 
 scaled=scaler.transform(clean_df)
@@ -180,6 +197,21 @@ with col3:
     except:
         st.info("Gambar tidak ditemukan")
 
+# ================= DATA TABLE =================
+st.markdown("<div class='section-title'>Data Sensor Lengkap</div>",unsafe_allow_html=True)
+
+st.dataframe(df,use_container_width=True)
+
+# ================= DOWNLOAD =================
+def to_excel(data):
+    output=BytesIO()
+    writer=pd.ExcelWriter(output,engine="xlsxwriter")
+    data.to_excel(writer,index=False)
+    writer.close()
+    return output.getvalue()
+
+st.download_button("Download Hasil Prediksi",to_excel(df),"hasil_prediksi.xlsx")
+
 # ================= MANUAL TEST =================
 st.markdown("<div class='section-title'>Pengujian Menggunakan Data Meteorologi Manual</div>",unsafe_allow_html=True)
 
@@ -212,15 +244,12 @@ if st.button("Prediksi Manual"):
 
     font,bg=risk_styles.get(hasil,("black","white"))
 
-    st.markdown(
-    f"""
+    st.markdown(f"""
 <p style='background-color:{bg};color:{font};padding:12px;border-radius:8px;font-weight:bold;'>
 Hasil Prediksi Risiko Kebakaran:
 <span style='font-size:22px;text-decoration:underline'>{hasil}</span>
 </p>
-""",
-    unsafe_allow_html=True
-    )
+""",unsafe_allow_html=True)
 
 # ================= TEXT TEST =================
 st.markdown("<div class='section-title'>Pengujian Menggunakan Data Teks</div>",unsafe_allow_html=True)
@@ -242,33 +271,15 @@ if st.button("Prediksi Teks"):
 
         font,bg=risk_styles.get(hasil,("black","white"))
 
-        st.markdown(
-        f"""
+        st.markdown(f"""
 <p style='background-color:{bg};color:{font};padding:12px;border-radius:8px;font-weight:bold;'>
 Hasil Prediksi Risiko Kebakaran:
 <span style='font-size:22px;text-decoration:underline'>{hasil}</span>
 </p>
-""",
-        unsafe_allow_html=True
-        )
+""",unsafe_allow_html=True)
 
     except:
         st.error("Model teks belum tersedia")
-
-# ================= DATA TABLE =================
-st.markdown("<div class='section-title'>Data Sensor Lengkap</div>",unsafe_allow_html=True)
-
-st.dataframe(df,use_container_width=True)
-
-# ================= DOWNLOAD =================
-def to_excel(data):
-    output=BytesIO()
-    writer=pd.ExcelWriter(output,engine="xlsxwriter")
-    data.to_excel(writer,index=False)
-    writer.close()
-    return output.getvalue()
-
-st.download_button("Download Hasil Prediksi",to_excel(df),"hasil_prediksi.xlsx")
 
 # ================= FOOTER =================
 st.markdown("""
