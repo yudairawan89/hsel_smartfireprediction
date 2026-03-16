@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import joblib
 from streamlit_autorefresh import st_autorefresh
-from datetime import datetime
 from io import BytesIO
 from streamlit_folium import folium_static
 import folium
@@ -27,26 +26,10 @@ margin-top:15px;
 
 table {width:100%;border-collapse:collapse}
 th,td {border:1px solid #ddd;padding:8px;text-align:center}
-
 </style>
 """, unsafe_allow_html=True)
 
 # ================= HELPER =================
-def convert_day(day):
-    return {
-        "Monday":"Senin","Tuesday":"Selasa","Wednesday":"Rabu",
-        "Thursday":"Kamis","Friday":"Jumat","Saturday":"Sabtu",
-        "Sunday":"Minggu"
-    }.get(day,day)
-
-def convert_month(month):
-    return {
-        "January":"Januari","February":"Februari","March":"Maret",
-        "April":"April","May":"Mei","June":"Juni",
-        "July":"Juli","August":"Agustus","September":"September",
-        "October":"Oktober","November":"November","December":"Desember"
-    }.get(month,month)
-
 def convert_label(pred):
     return {
         0:"Low / Rendah",
@@ -113,20 +96,10 @@ df.columns=[c.strip() for c in df.columns]
 
 rename_map={
 "Suhu Udara":"Tavg: Temperatur rata-rata (°C)",
-"Suhu":"Tavg: Temperatur rata-rata (°C)",
-"Temperatur":"Tavg: Temperatur rata-rata (°C)",
-
 "Kelembapan Udara":"RH_avg: Kelembapan rata-rata (%)",
-"Kelembapan":"RH_avg: Kelembapan rata-rata (%)",
-
 "Curah Hujan":"RR: Curah hujan (mm)",
-"Curah Hujan/Jam":"RR: Curah hujan (mm)",
-
 "Kecepatan Angin":"ff_avg: Kecepatan angin rata-rata (m/s)",
-"Kecepatan Angin (ms)":"ff_avg: Kecepatan angin rata-rata (m/s)",
-
-"Kelembapan Tanah":"Kelembaban Permukaan Tanah",
-"Soil Moisture":"Kelembaban Permukaan Tanah"
+"Kelembapan Tanah":"Kelembaban Permukaan Tanah"
 }
 
 df=df.rename(columns=rename_map)
@@ -154,6 +127,7 @@ font,bg=risk_styles.get(risk,("black","white"))
 # ================= DASHBOARD =================
 col1,col2,col3=st.columns([1.2,1.2,1.2])
 
+# ================= SENSOR =================
 with col1:
 
     st.subheader("Data Sensor Realtime")
@@ -174,6 +148,37 @@ Tingkat Risiko Kebakaran:
 """,
     unsafe_allow_html=True
     )
+
+# ================= MAP =================
+with col2:
+
+    st.subheader("Visualisasi Peta Lokasi")
+
+    coords=[-0.959240,100.396000]
+
+    m=folium.Map(location=coords,zoom_start=11)
+
+    folium.Circle(
+        location=coords,
+        radius=3000,
+        color="green",
+        fill=True
+    ).add_to(m)
+
+    folium.Marker(coords).add_to(m)
+
+    folium_static(m,width=450,height=350)
+
+# ================= IOT IMAGE =================
+with col3:
+
+    st.subheader("IoT Smart Fire Prediction")
+
+    try:
+        image=Image.open("forestiot4.jpg")
+        st.image(image)
+    except:
+        st.info("Gambar tidak ditemukan")
 
 # ================= MANUAL TEST =================
 st.markdown("<div class='section-title'>Pengujian Menggunakan Data Meteorologi Manual</div>",unsafe_allow_html=True)
@@ -249,3 +254,27 @@ Hasil Prediksi Risiko Kebakaran:
 
     except:
         st.error("Model teks belum tersedia")
+
+# ================= DATA TABLE =================
+st.markdown("<div class='section-title'>Data Sensor Lengkap</div>",unsafe_allow_html=True)
+
+st.dataframe(df,use_container_width=True)
+
+# ================= DOWNLOAD =================
+def to_excel(data):
+    output=BytesIO()
+    writer=pd.ExcelWriter(output,engine="xlsxwriter")
+    data.to_excel(writer,index=False)
+    writer.close()
+    return output.getvalue()
+
+st.download_button("Download Hasil Prediksi",to_excel(df),"hasil_prediksi.xlsx")
+
+# ================= FOOTER =================
+st.markdown("""
+<hr>
+<center>
+<b>Smart Fire Prediction HSEL Model</b><br>
+Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026
+</center>
+""",unsafe_allow_html=True)
