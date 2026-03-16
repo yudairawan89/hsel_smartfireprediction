@@ -2,29 +2,32 @@ import streamlit as st
 import pandas as pd
 import joblib
 from streamlit_autorefresh import st_autorefresh
+from datetime import datetime
 from io import BytesIO
 from streamlit_folium import folium_static
 import folium
 from PIL import Image
 
 # ================= PAGE CONFIG =================
-st.set_page_config(
-    page_title="Smart Fire Prediction HSEL",
-    page_icon="favicon.ico",
-    layout="wide"
-)
+st.set_page_config(page_title="Smart Fire Prediction HSEL", page_icon="favicon.ico", layout="wide")
 
 # ================= STYLE =================
 st.markdown("""
 <style>
 .main {background-color:#F9F9F9;}
+
 .section-title{
 background-color:#1f77b4;
 color:white;
 padding:10px;
 border-radius:6px;
 font-weight:bold;
+margin-top:15px;
 }
+
+table {width:100%;border-collapse:collapse}
+th,td {border:1px solid #ddd;padding:8px;text-align:center}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -86,10 +89,10 @@ with col1:
 
 with col2:
     st.markdown("""
-    <h2>Smart Fire Prediction HSEL Model</h2>
-    Sistem prediksi risiko kebakaran hutan berbasis Hybrid Stacking Ensemble Learning (HSEL)
-    yang terintegrasi dengan data sensor IoT secara real-time.
-    """,unsafe_allow_html=True)
+<h2>Smart Fire Prediction HSEL Model</h2>
+Sistem prediksi risiko kebakaran hutan berbasis Hybrid Stacking Ensemble Learning (HSEL)
+yang terintegrasi dengan data sensor IoT secara real-time.
+""",unsafe_allow_html=True)
 
 st.markdown("<hr>",unsafe_allow_html=True)
 
@@ -141,7 +144,7 @@ missing=[c for c in fitur if c not in df.columns]
 if missing:
     st.error("Kolom berikut tidak ditemukan di Google Sheets:")
     st.write(missing)
-    st.write("Kolom yang tersedia:",df.columns)
+    st.write("Kolom tersedia:",df.columns)
     st.stop()
 
 # ================= PREPROCESS =================
@@ -181,11 +184,11 @@ with col1:
 
     st.markdown(
     f"""
-    <p style='background-color:{bg};color:{font};padding:10px;border-radius:8px;font-weight:bold;'>
-    Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran:
-    <span style='font-size:22px;text-decoration:underline'>{risk}</span>
-    </p>
-    """,
+<p style='background-color:{bg};color:{font};padding:10px;border-radius:8px;font-weight:bold;'>
+Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran:
+<span style='font-size:22px;text-decoration:underline'>{risk}</span>
+</p>
+""",
     unsafe_allow_html=True
     )
 
@@ -193,14 +196,11 @@ with col1:
     with st.expander("Tindak Lanjut Instansi"):
 
         if risk=="Low / Rendah":
-
             st.markdown("""
 **Kondisi**
-
 Risiko kebakaran rendah.
 
 **Tindakan**
-
 • Monitoring rutin kondisi lingkungan  
 • Patroli berkala ringan  
 • Edukasi preventif kepada masyarakat  
@@ -208,29 +208,23 @@ Risiko kebakaran rendah.
 """)
 
         elif risk=="Moderate / Sedang":
-
             st.markdown("""
 **Kondisi**
-
 Risiko kebakaran sedang.
 
 **Tindakan**
-
 • Peningkatan frekuensi patroli  
-• Peringatan dini terbatas kepada masyarakat  
+• Peringatan dini kepada masyarakat  
 • Koordinasi BPBD dan aparat desa  
 • Pengawasan aktivitas pembakaran terbuka
 """)
 
         elif risk=="High / Tinggi":
-
             st.markdown("""
 **Kondisi**
-
 Risiko kebakaran tinggi.
 
 **Tindakan**
-
 • Aktivasi pos siaga lokal  
 • Penempatan personel siaga  
 • Koordinasi TNI/Polri dan Manggala Agni  
@@ -238,14 +232,11 @@ Risiko kebakaran tinggi.
 """)
 
         elif risk=="Very High / Sangat Tinggi":
-
             st.markdown("""
 **Kondisi**
-
 Risiko kebakaran sangat tinggi.
 
 **Tindakan**
-
 • Aktivasi posko tanggap darurat  
 • Mobilisasi tim pemadam  
 • Koordinasi lintas sektor  
@@ -263,10 +254,10 @@ with col2:
     m=folium.Map(location=coords,zoom_start=11)
 
     folium.Circle(
-    location=coords,
-    radius=3000,
-    color="green",
-    fill=True
+        location=coords,
+        radius=3000,
+        color="green",
+        fill=True
     ).add_to(m)
 
     folium.Marker(coords).add_to(m)
@@ -284,7 +275,45 @@ with col3:
     except:
         st.info("Gambar tidak ditemukan")
 
-# ================= DATA TABLE =================
+# ================= TABEL RISIKO =================
+st.markdown("<div class='section-title'>Tabel Tingkat Resiko dan Intensitas Kebakaran</div>",unsafe_allow_html=True)
+
+st.markdown("""
+<table>
+<tr>
+<th>Warna</th>
+<th>Tingkat Risiko</th>
+<th>Keterangan</th>
+</tr>
+
+<tr style='background-color:blue;color:white'>
+<td>Blue</td>
+<td>Low / Rendah</td>
+<td>Risiko kebakaran rendah dan api mudah dikendalikan.</td>
+</tr>
+
+<tr style='background-color:green;color:white'>
+<td>Green</td>
+<td>Moderate / Sedang</td>
+<td>Risiko kebakaran sedang dan masih dapat dikendalikan.</td>
+</tr>
+
+<tr style='background-color:yellow;color:black'>
+<td>Yellow</td>
+<td>High / Tinggi</td>
+<td>Risiko kebakaran tinggi dan api sulit dikendalikan.</td>
+</tr>
+
+<tr style='background-color:red;color:white'>
+<td>Red</td>
+<td>Very High / Sangat Tinggi</td>
+<td>Risiko kebakaran sangat tinggi dan api sangat sulit dikendalikan.</td>
+</tr>
+
+</table>
+""",unsafe_allow_html=True)
+
+# ================= DATA SENSOR =================
 st.markdown("<div class='section-title'>Data Sensor Lengkap</div>",unsafe_allow_html=True)
 
 st.dataframe(df,use_container_width=True)
@@ -293,13 +322,9 @@ st.dataframe(df,use_container_width=True)
 def to_excel(data):
 
     output=BytesIO()
-
     writer=pd.ExcelWriter(output,engine="xlsxwriter")
-
     data.to_excel(writer,index=False)
-
     writer.close()
-
     return output.getvalue()
 
 st.download_button(
@@ -307,6 +332,60 @@ st.download_button(
 to_excel(df),
 "hasil_prediksi.xlsx"
 )
+
+# ================= MANUAL TEST =================
+st.markdown("<div class='section-title'>Pengujian Menggunakan Data Meteorologi Manual</div>",unsafe_allow_html=True)
+
+col1,col2,col3=st.columns(3)
+
+with col1:
+    suhu=st.number_input("Suhu Udara",30.0)
+    kelembapan=st.number_input("Kelembapan Udara",65.0)
+
+with col2:
+    curah=st.number_input("Curah Hujan",10.0)
+    angin=st.number_input("Kecepatan Angin",3.0)
+
+with col3:
+    tanah=st.number_input("Kelembapan Tanah",50.0)
+
+if st.button("Prediksi Manual"):
+
+    input_df=pd.DataFrame([{
+    "Tavg: Temperatur rata-rata (°C)":suhu,
+    "RH_avg: Kelembapan rata-rata (%)":kelembapan,
+    "RR: Curah hujan (mm)":curah,
+    "ff_avg: Kecepatan angin rata-rata (m/s)":angin,
+    "Kelembaban Permukaan Tanah":tanah
+    }])
+
+    scaled=scaler.transform(input_df)
+
+    hasil=convert_label(model.predict(scaled)[0])
+
+    st.success(f"Hasil Prediksi Risiko Kebakaran: {hasil}")
+
+# ================= TEXT TEST =================
+st.markdown("<div class='section-title'>Pengujian Menggunakan Data Teks</div>",unsafe_allow_html=True)
+
+text_input=st.text_area("Masukkan deskripsi kondisi lingkungan")
+
+if st.button("Prediksi Teks"):
+
+    try:
+        vectorizer=joblib.load("tfidf_vectorizer.joblib")
+        model_text=joblib.load("stacking_text_model.joblib")
+
+        X=vectorizer.transform([text_input])
+
+        pred=model_text.predict(X)[0]
+
+        hasil=convert_label(pred)
+
+        st.success(f"Hasil Prediksi Risiko Kebakaran: {hasil}")
+
+    except:
+        st.error("Model teks belum tersedia")
 
 # ================= FOOTER =================
 st.markdown("""
