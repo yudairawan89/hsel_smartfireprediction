@@ -26,6 +26,7 @@ margin-top:15px;
 
 table {width:100%;border-collapse:collapse}
 th,td {border:1px solid #ddd;padding:8px;text-align:center}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -166,6 +167,20 @@ Tingkat Risiko Kebakaran:
     unsafe_allow_html=True
     )
 
+    with st.expander("Tindak Lanjut Instansi"):
+
+        if risk=="Low / Rendah":
+            st.write("Monitoring rutin kondisi lingkungan dan patroli ringan")
+
+        elif risk=="Moderate / Sedang":
+            st.write("Peningkatan patroli dan pengawasan aktivitas pembakaran")
+
+        elif risk=="High / Tinggi":
+            st.write("Aktivasi pos siaga dan koordinasi pemadaman")
+
+        elif risk=="Very High / Sangat Tinggi":
+            st.write("Mobilisasi tim pemadam dan status siaga darurat")
+
 # ================= MAP =================
 with col2:
 
@@ -197,7 +212,45 @@ with col3:
     except:
         st.info("Gambar tidak ditemukan")
 
-# ================= DATA TABLE =================
+# ================= TABEL RISIKO =================
+st.markdown("<div class='section-title'>Tabel Tingkat Resiko dan Intensitas Kebakaran</div>",unsafe_allow_html=True)
+
+st.markdown("""
+<table>
+<tr>
+<th>Warna</th>
+<th>Tingkat Risiko</th>
+<th>Keterangan</th>
+</tr>
+
+<tr style='background-color:blue;color:white'>
+<td>Blue</td>
+<td>Low / Rendah</td>
+<td>Risiko kebakaran rendah dan api mudah dikendalikan.</td>
+</tr>
+
+<tr style='background-color:green;color:white'>
+<td>Green</td>
+<td>Moderate / Sedang</td>
+<td>Risiko kebakaran sedang dan masih dapat dikendalikan.</td>
+</tr>
+
+<tr style='background-color:yellow;color:black'>
+<td>Yellow</td>
+<td>High / Tinggi</td>
+<td>Risiko kebakaran tinggi dan api sulit dikendalikan.</td>
+</tr>
+
+<tr style='background-color:red;color:white'>
+<td>Red</td>
+<td>Very High / Sangat Tinggi</td>
+<td>Risiko kebakaran sangat tinggi dan api sangat sulit dikendalikan.</td>
+</tr>
+
+</table>
+""",unsafe_allow_html=True)
+
+# ================= DATA SENSOR =================
 st.markdown("<div class='section-title'>Data Sensor Lengkap</div>",unsafe_allow_html=True)
 
 st.dataframe(df,use_container_width=True)
@@ -211,75 +264,6 @@ def to_excel(data):
     return output.getvalue()
 
 st.download_button("Download Hasil Prediksi",to_excel(df),"hasil_prediksi.xlsx")
-
-# ================= MANUAL TEST =================
-st.markdown("<div class='section-title'>Pengujian Menggunakan Data Meteorologi Manual</div>",unsafe_allow_html=True)
-
-col1,col2,col3=st.columns(3)
-
-with col1:
-    suhu=st.number_input("Suhu Udara",30.0)
-    kelembapan=st.number_input("Kelembapan Udara",65.0)
-
-with col2:
-    curah=st.number_input("Curah Hujan",10.0)
-    angin=st.number_input("Kecepatan Angin",3.0)
-
-with col3:
-    tanah=st.number_input("Kelembapan Tanah",50.0)
-
-if st.button("Prediksi Manual"):
-
-    input_df=pd.DataFrame([{
-    "Tavg: Temperatur rata-rata (°C)":suhu,
-    "RH_avg: Kelembapan rata-rata (%)":kelembapan,
-    "RR: Curah hujan (mm)":curah,
-    "ff_avg: Kecepatan angin rata-rata (m/s)":angin,
-    "Kelembaban Permukaan Tanah":tanah
-    }])
-
-    scaled=scaler.transform(input_df)
-
-    hasil=convert_label(model.predict(scaled)[0])
-
-    font,bg=risk_styles.get(hasil,("black","white"))
-
-    st.markdown(f"""
-<p style='background-color:{bg};color:{font};padding:12px;border-radius:8px;font-weight:bold;'>
-Hasil Prediksi Risiko Kebakaran:
-<span style='font-size:22px;text-decoration:underline'>{hasil}</span>
-</p>
-""",unsafe_allow_html=True)
-
-# ================= TEXT TEST =================
-st.markdown("<div class='section-title'>Pengujian Menggunakan Data Teks</div>",unsafe_allow_html=True)
-
-text_input=st.text_area("Masukkan deskripsi kondisi lingkungan")
-
-if st.button("Prediksi Teks"):
-
-    try:
-
-        vectorizer=joblib.load("tfidf_vectorizer.joblib")
-        model_text=joblib.load("stacking_text_model.joblib")
-
-        X=vectorizer.transform([text_input])
-
-        pred=model_text.predict(X)[0]
-
-        hasil=convert_label(pred)
-
-        font,bg=risk_styles.get(hasil,("black","white"))
-
-        st.markdown(f"""
-<p style='background-color:{bg};color:{font};padding:12px;border-radius:8px;font-weight:bold;'>
-Hasil Prediksi Risiko Kebakaran:
-<span style='font-size:22px;text-decoration:underline'>{hasil}</span>
-</p>
-""",unsafe_allow_html=True)
-
-    except:
-        st.error("Model teks belum tersedia")
 
 # ================= FOOTER =================
 st.markdown("""
