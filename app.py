@@ -334,7 +334,7 @@ st.markdown("""
 
 # === TAMBAHAN VISUALISASI TREN (ALTAIR KUSTOM) ===
 if 'clean_df' in locals() and 'df' in locals() and not df.empty:
-    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor (15 Hari Terakhir)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor</div>", unsafe_allow_html=True)
     
     df_chart = clean_df.copy()
     
@@ -372,7 +372,7 @@ if 'clean_df' in locals() and 'df' in locals() and not df.empty:
 
         # 6. Render Tab Grafik
         tab_all, tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "📈 Semua Sensor",
+            "📈 Semua Data",
             "🌡️ Suhu Udara",
             "💧 Kelembapan Udara",
             "🌧️ Curah Hujan",
