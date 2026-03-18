@@ -424,42 +424,45 @@ with btn_pred_text:
                 model_text = joblib.load("stacking_text_model.joblib")
 
                 # --- PROSES PRE-PROCESSING TEKS HSEL ---
-                # 1. Raw Text
                 raw_text = input_text
-                
-                # 2. Case Folding
                 text_lower = raw_text.lower()
-                
-                # 3. Cleansing
                 text_clean = re.sub(r'[^a-zA-Z\s]', '', text_lower)
-                
-                # 4. Stopword Removal
                 text_stopword = stopword_remover.remove(text_clean)
-                
-                # 5. Tokenization
                 tokens = text_stopword.split()
                 token_display = "[" + ", ".join(tokens) + "]"
-                
-                # 6. Stemming
                 text_stemmed = stemmer.stem(" ".join(tokens))
                 
-                # 7. TF-IDF Transform
+                # --- TF-IDF TRANSFORM ---
                 X_trans = vectorizer.transform([text_stemmed])
 
-                # --- EKSTRAK BOBOT TF-IDF UNTUK DITAMPILKAN ---
+                # Ekstrak Bobot TF-IDF
                 feature_names = vectorizer.get_feature_names_out()
                 dense_vector = X_trans.todense().tolist()[0]
                 
-                # Ambil hanya kata yang memiliki bobot > 0, lalu bulatkan 4 angka di belakang koma
                 tfidf_details = [{"Kata (Term)": word, "Skor TF-IDF": round(score, 4)} 
                                  for word, score in zip(feature_names, dense_vector) if score > 0]
-                
-                # Urutkan dari bobot tertinggi ke terendah
                 tfidf_details = sorted(tfidf_details, key=lambda x: x["Skor TF-IDF"], reverse=True)
                 df_tfidf = pd.DataFrame(tfidf_details)
-                # ----------------------------------------------
+                
+                # Ekstrak Probabilitas Model HSEL (jika model mendukung predict_proba)
+                prob_dict = {}
+                try:
+                    proba = model_text.predict_proba(X_trans)[0]
+                    # Asumsi model.classes_ mengembalikan urutan [0, 1, 2, 3]
+                    prob_dict = {
+                        "Low / Rendah": proba[0],
+                        "Moderate / Sedang": proba[1],
+                        "High / Tinggi": proba[2],
+                        "Very High / Sangat Tinggi": proba[3]
+                    }
+                except Exception:
+                    pass # Abaikan jika tidak ada predict_proba
 
-                # Simpan seluruh status preprocessing ke session state
+                # Prediksi Label
+                pred = model_text.predict(X_trans)[0]
+                label_text = convert_to_label(pred)
+
+                # Simpan ke session state
                 st.session_state.text_preprocessing = {
                     "raw": raw_text,
                     "case_folding": text_lower,
@@ -467,12 +470,9 @@ with btn_pred_text:
                     "stopword": text_stopword,
                     "tokenizing": token_display,
                     "stemming": text_stemmed,
-                    "tfidf_shape": X_trans.shape,
-                    "tfidf_df": df_tfidf # Menyimpan dataframe bobot
+                    "tfidf_df": df_tfidf,
+                    "prob_dict": prob_dict
                 }
-
-                pred = model_text.predict(X_trans)[0]
-                label_text = convert_to_label(pred)
                 
                 st.session_state.text_input = input_text
                 st.session_state.text_result = label_text
@@ -488,7 +488,7 @@ with btn_reset_text:
         st.rerun()
 
 if st.session_state.text_result:
-    with st.expander("🛠️ Klik untuk melihat hasil setiap tahapan Pre-processing Data Teks", expanded=False):
+    with st.expander("🛠️ Klik untuk melihat hasil setiap tahapan Pre-processing & Keputusan Model", expanded=False):
         steps = st.session_state.text_preprocessing
         if steps:
             st.markdown("**1. Original Text (Teks Mentah)**")
@@ -510,15 +510,30 @@ if st.session_state.text_result:
             st.info(steps.get("stemming", "-"))
 
             st.markdown("**7. Ekstraksi Fitur (TF-IDF)**")
-            st.code(f"Shape Matriks TF-IDF: {steps.get('tfidf_shape', '')}")
-            
-            # Menampilkan tabel bobot TF-IDF
             df_tfidf_display = steps.get("tfidf_df")
             if df_tfidf_display is not None and not df_tfidf_display.empty:
-                st.markdown("<span style='font-size:14px; color:gray;'>Rincian Bobot TF-IDF (Diurutkan dari tertinggi):</span>", unsafe_allow_html=True)
+                st.markdown(f"<span style='font-size:14px; color:gray;'>Ditemukan <b>{len(df_tfidf_display)} kata</b> yang dikenali dari kamus vocabulary model. Berikut rincian bobotnya:</span>", unsafe_allow_html=True)
                 st.dataframe(df_tfidf_display, use_container_width=True)
-            elif df_tfidf_display is not None and df_tfidf_display.empty:
+            else:
                 st.warning("Kata-kata pada input ini tidak dikenali dalam kosakata (vocabulary) model Anda.")
+
+            # Menampilkan Alasan Prediksi (Probabilitas)
+            st.markdown("**8. Analisis Keputusan Model (Probabilitas HSEL)**")
+            st.markdown("<span style='font-size:14px; color:gray;'>Berdasarkan kombinasi bobot TF-IDF di atas, berikut adalah tingkat keyakinan model Stacking Ensemble untuk setiap kelas:</span>", unsafe_allow_html=True)
+            
+            prob_dict = steps.get("prob_dict")
+            if prob_dict:
+                for label, prob in prob_dict.items():
+                    # Menentukan warna bar berdasarkan label
+                    bar_color = "blue"
+                    if "Moderate" in label: bar_color = "green"
+                    elif "Sangat Tinggi" in label: bar_color = "red"
+                    elif "High" in label: bar_color = "orange"
+                    
+                    st.markdown(f"**{label}** ({prob*100:.1f}%)")
+                    st.progress(float(prob))
+            else:
+                st.info("Model ini tidak menyediakan metrik probabilitas (predict_proba).")
 
     hasil = st.session_state.text_result
     font, bg = risk_styles.get(hasil, ("black", "white"))
@@ -526,6 +541,22 @@ if st.session_state.text_result:
         f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top: 15px; font-size: 16px;'>"
         f"Hasil Prediksi Tingkat Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True
     )
+
+# === FOOTER ===
+st.markdown("<br><hr>", unsafe_allow_html=True)
+st.markdown("""
+<div style='
+    margin-top: 20px;
+    background-color: black;
+    padding: 10px 20px;
+    border-radius: 10px;
+    text-align: center;
+    color: white;
+'>
+    <p style='margin: 0; font-size: 30px; font-weight: bold; line-height: 1.2;'>Smart Fire Prediction HSEL Model</p>
+    <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
+</div>
+""", unsafe_allow_html=True)
 
 # === FOOTER ===
 st.markdown("<br><hr>", unsafe_allow_html=True)
