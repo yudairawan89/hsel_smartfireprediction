@@ -491,7 +491,7 @@ if st.session_state.text_result:
     with st.expander("🛠️ Klik untuk melihat hasil setiap tahapan Pre-processing & Keputusan Model", expanded=False):
         steps = st.session_state.text_preprocessing
         if steps:
-            st.markdown("**1. Original Text (Teks Mentah)**")
+            st.markdown("**1. Original Text**")
             st.info(steps.get("raw", "-"))
 
             st.markdown("**2. Case Folding (Pengecilan Huruf)**")
@@ -500,7 +500,7 @@ if st.session_state.text_result:
             st.markdown("**3. Cleansing (Penghapusan Karakter Khusus & Angka)**")
             st.info(steps.get("cleansing", "-"))
             
-            st.markdown("**4. Stopword (Penghapusan Kata Hubung)**")
+            st.markdown("**4. Stopword (Penghapusan Kata)**")
             st.info(steps.get("stopword", "-"))
 
             st.markdown("**5. Tokenization (Pemotongan Kata)**")
