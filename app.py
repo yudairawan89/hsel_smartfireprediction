@@ -8,7 +8,7 @@ from streamlit_folium import folium_static
 import folium
 from PIL import Image
 import re
-import altair as alt  # KUNCI UTAMA: Tambahan library untuk grafik tumpuk (Bar + Line)
+import altair as alt # LIBRARY WAJIB UNTUK GRAFIK KUSTOM (BAR + LINE)
 
 # === TAMBAHAN LIBRARY SASTRAWI ===
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
@@ -78,14 +78,10 @@ def load_scaler():
 
 @st.cache_resource
 def load_sastrawi():
-    # Inisialisasi Stopword
     stop_factory = StopWordRemoverFactory()
     stopword_remover = stop_factory.create_stop_word_remover()
-    
-    # Inisialisasi Stemmer
     stem_factory = StemmerFactory()
     stemmer = stem_factory.create_stemmer()
-    
     return stopword_remover, stemmer
 
 model = load_model()
@@ -336,28 +332,26 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# === TAMBAHAN VISUALISASI TREN ===
+# === TAMBAHAN VISUALISASI TREN (ALTAIR KUSTOM) ===
 if 'clean_df' in locals() and 'df' in locals() and not df.empty:
-    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor (Rata-rata 15 Hari Terakhir)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor (15 Hari Terakhir)</div>", unsafe_allow_html=True)
     
     df_chart = clean_df.copy()
     
-    # Bersihkan string waktu dan paksa menjadi format pandas Datetime
+    # 1. Bersihkan string waktu dan paksa menjadi format Datetime
     waktu_clean = df['Waktu'].astype(str).str.replace(' - ', ' ', regex=False)
     df_chart['Waktu_DT'] = pd.to_datetime(waktu_clean, errors='coerce')
     df_chart = df_chart.dropna(subset=['Waktu_DT'])
     
     if not df_chart.empty:
-        # Jadikan Waktu sebagai index
+        # 2. Jadikan Datetime sebagai Index dan hitung rata-rata per hari ('D')
         df_chart = df_chart.set_index('Waktu_DT')
-        
-        # Kelompokkan data per Hari ('D') dan hitung rata-rata
         df_daily = df_chart[fitur].resample('D').mean().dropna()
         
-        # Ambil KHUSUS 15 HARI TERAKHIR
+        # 3. Ambil 15 hari terakhir
         df_daily = df_daily.tail(15)
         
-        # Rename kolom agar rapi di grafik
+        # 4. Ganti nama kolom untuk label grafik
         chart_rename = {
             'Tavg: Temperatur rata-rata (°C)': 'Suhu (°C)',
             'RH_avg: Kelembapan rata-rata (%)': 'Kelembapan (%)',
@@ -367,7 +361,14 @@ if 'clean_df' in locals() and 'df' in locals() and not df.empty:
         }
         df_daily = df_daily.rename(columns=chart_rename)
         
-        # Sediakan 6 Tab (Tambahan Tab Pertama untuk Keseluruhan)
+        # 5. Reset index agar Waktu_DT bisa dipakai oleh Altair
+        df_vis = df_daily.reset_index()
+        
+        # --- PENGATURAN SUMBU X KUSTOM (Format "%d %b" -> "01 Mar") ---
+        # Sumbu T (Temporal) memastikan tanggal diurutkan berdasarkan kalender, bukan abjad
+        x_axis = alt.X('Waktu_DT:T', axis=alt.Axis(format='%d %b', title='Tanggal', labelAngle=-45, grid=False))
+
+        # 6. Render Tab Grafik
         tab_all, tab1, tab2, tab3, tab4, tab5 = st.tabs([
             "📈 Semua Sensor",
             "🌡️ Suhu Udara",
@@ -378,43 +379,63 @@ if 'clean_df' in locals() and 'df' in locals() and not df.empty:
         ])
         
         with tab_all:
-            # st.line_chart secara otomatis akan memplot SEMUA kolom dan memberikan Legend
-            st.line_chart(data=df_daily)
+            # Transform data ke format 'long' agar bisa dibuat Multi-Line Legend
+            df_melted = df_vis.melt(id_vars=['Waktu_DT'], var_name='Parameter Sensor', value_name='Nilai')
+            
+            chart_all = alt.Chart(df_melted).mark_line(strokeWidth=2, point=True).encode(
+                x=x_axis,
+                y=alt.Y('Nilai:Q', title='Nilai Pembacaan'),
+                color=alt.Color('Parameter Sensor:N', legend=alt.Legend(orient="bottom", title=None)),
+                tooltip=['Waktu_DT:T', 'Parameter Sensor:N', alt.Tooltip('Nilai:Q', format='.1f')]
+            ).properties(height=400).interactive()
+            
+            st.altair_chart(chart_all, use_container_width=True)
             
         with tab1:
-            st.line_chart(data=df_daily[['Suhu (°C)']], color="#ff5733")
+            chart_temp = alt.Chart(df_vis).mark_line(color="#ff5733", strokeWidth=3, point=alt.OverlayMarkDef(color="#ff5733", size=50)).encode(
+                x=x_axis, y=alt.Y('Suhu (°C):Q'), tooltip=['Waktu_DT:T', alt.Tooltip('Suhu (°C):Q', format='.1f')]
+            ).properties(height=350).interactive()
+            st.altair_chart(chart_temp, use_container_width=True)
             
         with tab2:
-            st.line_chart(data=df_daily[['Kelembapan (%)']], color="#33d4ff")
+            chart_hum = alt.Chart(df_vis).mark_line(color="#33d4ff", strokeWidth=3, point=alt.OverlayMarkDef(color="#33d4ff", size=50)).encode(
+                x=x_axis, y=alt.Y('Kelembapan (%):Q'), tooltip=['Waktu_DT:T', alt.Tooltip('Kelembapan (%):Q', format='.1f')]
+            ).properties(height=350).interactive()
+            st.altair_chart(chart_hum, use_container_width=True)
             
         with tab3:
-            # Memakai Altair untuk menggabungkan Bar Chart & Line Chart
-            df_rain = df_daily.reset_index() # Tarik index waktu agar bisa dibaca Altair
+            # --- GRAFIK TUMPUK (BAR + LINE) UNTUK CURAH HUJAN ---
+            base = alt.Chart(df_vis).encode(x=x_axis)
             
-            # Buat dasar grafik (Sumbu X)
-            base = alt.Chart(df_rain).encode(
-                x=alt.X('Waktu_DT:T', title='Tanggal', axis=alt.Axis(format='%d %b %Y', labelAngle=-45))
+            # Diagram Batang
+            bar = base.mark_bar(color="#335eff", opacity=0.7, size=25).encode(
+                y=alt.Y('Curah Hujan (mm):Q', title='Curah Hujan (mm)'),
+                tooltip=['Waktu_DT:T', alt.Tooltip('Curah Hujan (mm):Q', format='.1f')]
             )
             
-            # Buat grafik Batang (Bar)
-            bar = base.mark_bar(color="#335eff", opacity=0.6, size=25).encode(
-                y=alt.Y('Curah Hujan (mm):Q', title='Curah Hujan (mm)')
+            # Diagram Garis + Titik
+            line = base.mark_line(color="#ff0000", strokeWidth=2).encode(
+                y=alt.Y('Curah Hujan (mm):Q')
             )
-            
-            # Buat grafik Garis (Line) + Titik penanda
-            line = base.mark_line(color="#ff0000", strokeWidth=2, point=alt.OverlayMarkDef(color="red", size=60)).encode(
+            point = base.mark_circle(color="#ff0000", size=60).encode(
                 y=alt.Y('Curah Hujan (mm):Q')
             )
             
-            # Gabungkan (Tumpuk) keduanya
-            gabungan_hujan = (bar + line).properties(height=350)
-            st.altair_chart(gabungan_hujan, use_container_width=True)
+            # Tumpuk ketiga layer tersebut
+            chart_rain = (bar + line + point).properties(height=350).interactive()
+            st.altair_chart(chart_rain, use_container_width=True)
             
         with tab4:
-            st.line_chart(data=df_daily[['Kecepatan Angin (m/s)']], color="#a833ff")
+            chart_wind = alt.Chart(df_vis).mark_line(color="#a833ff", strokeWidth=3, point=alt.OverlayMarkDef(color="#a833ff", size=50)).encode(
+                x=x_axis, y=alt.Y('Kecepatan Angin (m/s):Q'), tooltip=['Waktu_DT:T', alt.Tooltip('Kecepatan Angin (m/s):Q', format='.1f')]
+            ).properties(height=350).interactive()
+            st.altair_chart(chart_wind, use_container_width=True)
             
         with tab5:
-            st.line_chart(data=df_daily[['Kelembaban Tanah (%)']], color="#33ff5e")
+            chart_soil = alt.Chart(df_vis).mark_line(color="#33ff5e", strokeWidth=3, point=alt.OverlayMarkDef(color="#33ff5e", size=50)).encode(
+                x=x_axis, y=alt.Y('Kelembaban Tanah (%):Q'), tooltip=['Waktu_DT:T', alt.Tooltip('Kelembaban Tanah (%):Q', format='.1f')]
+            ).properties(height=350).interactive()
+            st.altair_chart(chart_soil, use_container_width=True)
             
     else:
         st.info("Data tidak dapat diproses untuk grafik. Pastikan format kolom Waktu pada file CSV valid.")
