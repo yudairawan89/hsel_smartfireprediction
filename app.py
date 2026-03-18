@@ -8,6 +8,7 @@ from streamlit_folium import folium_static
 import folium
 from PIL import Image
 import re
+import altair as alt  # KUNCI UTAMA: Tambahan library untuk grafik tumpuk (Bar + Line)
 
 # === TAMBAHAN LIBRARY SASTRAWI ===
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
@@ -335,35 +336,28 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# === TAMBAHAN VISUALISASI TREN (RATA-RATA 7 HARI TERAKHIR) ===
+# === TAMBAHAN VISUALISASI TREN ===
 if 'clean_df' in locals() and 'df' in locals() and not df.empty:
-    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor (Rata-rata 7 Hari Terakhir)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor (Rata-rata 15 Hari Terakhir)</div>", unsafe_allow_html=True)
     
     df_chart = clean_df.copy()
     
     # Bersihkan string waktu dan paksa menjadi format pandas Datetime
     waktu_clean = df['Waktu'].astype(str).str.replace(' - ', ' ', regex=False)
     df_chart['Waktu_DT'] = pd.to_datetime(waktu_clean, errors='coerce')
-    
     df_chart = df_chart.dropna(subset=['Waktu_DT'])
     
     if not df_chart.empty:
-        # 1. Ambil tanggalnya saja untuk Grouping
-        df_chart['Tanggal'] = df_chart['Waktu_DT'].dt.date
+        # Jadikan Waktu sebagai index
+        df_chart = df_chart.set_index('Waktu_DT')
         
-        # 2. Kelompokkan dan hitung rata-rata per hari
-        df_daily = df_chart.groupby('Tanggal')[fitur].mean().reset_index()
+        # Kelompokkan data per Hari ('D') dan hitung rata-rata
+        df_daily = df_chart[fitur].resample('D').mean().dropna()
         
-        # 3. Urutkan berdasarkan Tanggal dari lama ke baru
-        df_daily = df_daily.sort_values('Tanggal')
+        # Ambil KHUSUS 15 HARI TERAKHIR
+        df_daily = df_daily.tail(15)
         
-        # 4. Ambil KHUSUS 7 HARI TERAKHIR (tail 7)
-        df_daily = df_daily.tail(7)
-        
-        # 5. Format tanggal ke DatetimeIndex agar digambar sebagai Time-Series asli oleh Streamlit/Altair
-        df_daily['Tanggal'] = pd.to_datetime(df_daily['Tanggal'])
-        df_daily = df_daily.set_index('Tanggal')
-        
+        # Rename kolom agar rapi di grafik
         chart_rename = {
             'Tavg: Temperatur rata-rata (°C)': 'Suhu (°C)',
             'RH_avg: Kelembapan rata-rata (%)': 'Kelembapan (%)',
@@ -373,7 +367,9 @@ if 'clean_df' in locals() and 'df' in locals() and not df.empty:
         }
         df_daily = df_daily.rename(columns=chart_rename)
         
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        # Sediakan 6 Tab (Tambahan Tab Pertama untuk Keseluruhan)
+        tab_all, tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "📈 Semua Sensor",
             "🌡️ Suhu Udara",
             "💧 Kelembapan Udara",
             "🌧️ Curah Hujan",
@@ -381,17 +377,45 @@ if 'clean_df' in locals() and 'df' in locals() and not df.empty:
             "🌱 Kelembapan Tanah"
         ])
         
+        with tab_all:
+            # st.line_chart secara otomatis akan memplot SEMUA kolom dan memberikan Legend
+            st.line_chart(data=df_daily)
+            
         with tab1:
             st.line_chart(data=df_daily[['Suhu (°C)']], color="#ff5733")
+            
         with tab2:
             st.line_chart(data=df_daily[['Kelembapan (%)']], color="#33d4ff")
+            
         with tab3:
-            # GANTI area_chart MENJADI bar_chart DI BAWAH INI
-            st.bar_chart(data=df_daily[['Curah Hujan (mm)']], color="#335eff")
+            # Memakai Altair untuk menggabungkan Bar Chart & Line Chart
+            df_rain = df_daily.reset_index() # Tarik index waktu agar bisa dibaca Altair
+            
+            # Buat dasar grafik (Sumbu X)
+            base = alt.Chart(df_rain).encode(
+                x=alt.X('Waktu_DT:T', title='Tanggal', axis=alt.Axis(format='%d %b %Y', labelAngle=-45))
+            )
+            
+            # Buat grafik Batang (Bar)
+            bar = base.mark_bar(color="#335eff", opacity=0.6, size=25).encode(
+                y=alt.Y('Curah Hujan (mm):Q', title='Curah Hujan (mm)')
+            )
+            
+            # Buat grafik Garis (Line) + Titik penanda
+            line = base.mark_line(color="#ff0000", strokeWidth=2, point=alt.OverlayMarkDef(color="red", size=60)).encode(
+                y=alt.Y('Curah Hujan (mm):Q')
+            )
+            
+            # Gabungkan (Tumpuk) keduanya
+            gabungan_hujan = (bar + line).properties(height=350)
+            st.altair_chart(gabungan_hujan, use_container_width=True)
+            
         with tab4:
             st.line_chart(data=df_daily[['Kecepatan Angin (m/s)']], color="#a833ff")
+            
         with tab5:
             st.line_chart(data=df_daily[['Kelembaban Tanah (%)']], color="#33ff5e")
+            
     else:
         st.info("Data tidak dapat diproses untuk grafik. Pastikan format kolom Waktu pada file CSV valid.")
 
