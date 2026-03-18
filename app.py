@@ -335,35 +335,31 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# === TAMBAHAN VISUALISASI TREN (RATA-RATA 7 HARI TERAKHIR) ===
+# === TAMBAHAN VISUALISASI TREN (RATA-RATA HARIAN) ===
 if 'clean_df' in locals() and 'df' in locals() and not df.empty:
-    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor (Rata-rata 7 Hari Terakhir)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor (15 Hari Terakhir)</div>", unsafe_allow_html=True)
     
     df_chart = clean_df.copy()
     
-    # Bersihkan string waktu dan paksa menjadi format pandas Datetime
+    # 1. Bersihkan string waktu dan PAKSA menjadi format Datetime (Waktu)
     waktu_clean = df['Waktu'].astype(str).str.replace(' - ', ' ', regex=False)
     df_chart['Waktu_DT'] = pd.to_datetime(waktu_clean, errors='coerce')
     
+    # Buang data yang waktu-nya kosong/error
     df_chart = df_chart.dropna(subset=['Waktu_DT'])
     
     if not df_chart.empty:
-        # 1. Ambil tanggalnya saja untuk Grouping
-        df_chart['Tanggal'] = df_chart['Waktu_DT'].dt.date
+        # 2. Jadikan Datetime sebagai Index
+        df_chart = df_chart.set_index('Waktu_DT')
         
-        # 2. Kelompokkan dan hitung rata-rata per hari
-        df_daily = df_chart.groupby('Tanggal')[fitur].mean().reset_index()
+        # 3. Kelompokkan data per Hari ('D') dan hitung rata-rata
+        # CATATAN: Dengan cara ini, tanggal OTOMATIS akan urut dari lama ke baru (kronologis)
+        df_daily = df_chart[fitur].resample('D').mean().dropna()
         
-        # 3. Urutkan berdasarkan Tanggal dari lama ke baru
-        df_daily = df_daily.sort_values('Tanggal')
+        # 4. Ambil 15 hari terakhir
+        df_daily = df_daily.tail(15)
         
-        # 4. Ambil KHUSUS 7 HARI TERAKHIR (tail 7)
-        df_daily = df_daily.tail(7)
-        
-        # 5. Format tanggal ke DatetimeIndex agar digambar sebagai Time-Series asli oleh Streamlit/Altair
-        df_daily['Tanggal'] = pd.to_datetime(df_daily['Tanggal'])
-        df_daily = df_daily.set_index('Tanggal')
-        
+        # 5. Ganti nama kolom untuk grafik
         chart_rename = {
             'Tavg: Temperatur rata-rata (°C)': 'Suhu (°C)',
             'RH_avg: Kelembapan rata-rata (%)': 'Kelembapan (%)',
@@ -373,6 +369,7 @@ if 'clean_df' in locals() and 'df' in locals() and not df.empty:
         }
         df_daily = df_daily.rename(columns=chart_rename)
         
+        # 6. Render Tab Grafik
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
             "🌡️ Suhu Udara",
             "💧 Kelembapan Udara",
@@ -382,17 +379,18 @@ if 'clean_df' in locals() and 'df' in locals() and not df.empty:
         ])
         
         with tab1:
-            st.line_chart(data=df_daily[['Suhu (°C)']], color="#ff5733")
+            st.line_chart(df_daily[['Suhu (°C)']], color="#ff5733")
         with tab2:
-            st.line_chart(data=df_daily[['Kelembapan (%)']], color="#33d4ff")
+            st.line_chart(df_daily[['Kelembapan (%)']], color="#33d4ff")
         with tab3:
-            st.bar_chart(data=df_daily[['Curah Hujan (mm)']], color="#335eff")
+            # INI KUNCINYA: Menggunakan st.bar_chart untuk Diagram Batang
+            st.bar_chart(df_daily[['Curah Hujan (mm)']], color="#335eff")
         with tab4:
-            st.line_chart(data=df_daily[['Kecepatan Angin (m/s)']], color="#a833ff")
+            st.line_chart(df_daily[['Kecepatan Angin (m/s)']], color="#a833ff")
         with tab5:
-            st.line_chart(data=df_daily[['Kelembaban Tanah (%)']], color="#33ff5e")
+            st.line_chart(df_daily[['Kelembaban Tanah (%)']], color="#33ff5e")
     else:
-        st.info("Data tidak dapat diproses untuk grafik. Pastikan format kolom Waktu pada file CSV valid.")
+        st.info("Data tidak dapat diproses untuk grafik. Pastikan format kolom Waktu valid.")
 
 # === TAMPILKAN DATA LENGKAP ===
 st.markdown("<div class='section-title'>Data Sensor Lengkap</div>", unsafe_allow_html=True)
