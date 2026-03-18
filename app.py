@@ -234,26 +234,56 @@ def dashboard_realtime():
             unsafe_allow_html=True
         )
 
-        with st.expander("Tindak Lanjut Instansi"):
+with st.expander("Tindak Lanjut Instansi"):
             if risk_label == "Low / Rendah":
                 st.markdown("""
-**Kondisi**\nRisiko kebakaran rendah.\n
-**Tindakan**\n• Monitoring rutin kondisi lingkungan\n• Patroli berkala ringan\n• Edukasi preventif kepada masyarakat\n• Dokumentasi kondisi normal
+**Kondisi:**
+Tingkat risiko kebakaran rendah. Intensitas api pada kategori rendah. Api mudah dikendalikan dan cenderung dapat padam secara alami. Parameter lingkungan relatif stabil dan belum menunjukkan indikasi eskalasi signifikan.
+
+**Tindakan Instansi:**
+• Monitoring rutin kondisi lingkungan
+• Patroli berkala ringan
+• Edukasi preventif kepada masyarakat
+• Dokumentasi dan pelaporan kondisi normal
 """)
             elif risk_label == "Moderate / Sedang":
                 st.markdown("""
-**Kondisi**\nRisiko kebakaran sedang.\n
-**Tindakan**\n• Peningkatan frekuensi patroli\n• Peringatan dini terbatas kepada masyarakat\n• Koordinasi BPBD dan aparat desa\n• Pengawasan aktivitas pembakaran terbuka
+**Kondisi:**
+Tingkat risiko kebakaran sedang. Intensitas api pada kategori sedang. Api relatif masih cukup mudah dikendalikan, namun terdapat indikasi peningkatan potensi akibat kondisi cuaca yang mulai mengarah pada kekeringan atau peningkatan suhu.
+
+**Tindakan Instansi:**
+• Peningkatan frekuensi patroli
+• Penyampaian peringatan dini terbatas kepada masyarakat
+• Koordinasi internal BPBD dan aparat desa
+• Pengawasan aktivitas pembakaran terbuka
 """)
             elif risk_label == "High / Tinggi":
                 st.markdown("""
-**Kondisi**\nRisiko kebakaran tinggi.\n
-**Tindakan**\n• Aktivasi pos siaga lokal\n• Penempatan personel siaga\n• Koordinasi TNI/Polri dan Manggala Agni\n• Penyiapan alat pemadaman awal
+**Kondisi:**
+Tingkat risiko kebakaran tinggi. Intensitas api pada kategori tinggi. Api sulit dikendalikan dan berpotensi meluas apabila tidak segera ditangani. Parameter lingkungan menunjukkan kondisi kering dan mendukung penyebaran api.
+
+**Tindakan Instansi:**
+• Aktivasi pos siaga tingkat lokal
+• Penempatan personel siaga di titik rawan
+• Koordinasi dengan TNI/Polri dan Manggala Agni
+• Peringatan dini terbuka kepada masyarakat
+• Penyiapan peralatan pemadaman awal
+• Koordinasi awal dengan BMKG/BNPB terkait kemungkinan Operasi Modifikasi Cuaca (OMC) jika tren risiko meningkat
 """)
             elif risk_label == "Very High / Sangat Tinggi":
                 st.markdown("""
-**Kondisi**\nRisiko kebakaran sangat tinggi.\n
-**Tindakan**\n• Aktivasi posko tanggap darurat\n• Mobilisasi tim pemadam\n• Koordinasi lintas sektor\n• Penyiapan logistik darurat\n• Rekomendasi Operasi Modifikasi Cuaca
+**Kondisi:**
+Tingkat risiko kebakaran sangat tinggi. Intensitas api pada kategori sangat tinggi. Api sangat sulit dikendalikan dan berpotensi berkembang cepat serta meluas. Parameter meteorologis berada pada kondisi ekstrem (suhu tinggi, kelembaban rendah, curah hujan minim) yang sangat mendukung eskalasi kebakaran.
+
+**Tindakan Instansi:**
+• Penetapan status siaga darurat tingkat lokal
+• Aktivasi penuh posko tanggap darurat
+• Mobilisasi tim pemantauan dan pemadam
+• Koordinasi lintas sektor (BPBD, TNI, Polri, DLH, Manggala Agni)
+• Penyebaran peringatan dini melalui media resmi
+• Pengetatan larangan pembakaran terbuka
+• Persiapan logistik dan sumber daya darurat
+• Rekomendasi pelaksanaan Operasi Modifikasi Cuaca (OMC) melalui koordinasi dengan BMKG dan BNPB untuk meningkatkan peluang hujan buatan sebagai upaya mitigasi eskalasi kebakaran
 """)
 
     with col_tengah:
