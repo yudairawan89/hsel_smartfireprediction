@@ -503,7 +503,7 @@ if st.session_state.text_result:
             st.markdown("**4. Stopword (Penghapusan Kata)**")
             st.info(steps.get("stopword", "-"))
 
-            st.markdown("**5. Tokenization (Pemotongan Kata)**")
+            st.markdown("**5. Tokenization (Pemenggalan Kata)**")
             st.info(steps.get("tokenizing", "[]"))
             
             st.markdown("**6. Stemming (Pemotongan Imbuhan)**")
