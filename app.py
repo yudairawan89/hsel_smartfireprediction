@@ -386,7 +386,8 @@ if 'clean_df' in locals() and 'df' in locals() and not df.empty:
         with tab2:
             st.line_chart(data=df_daily[['Kelembapan (%)']], color="#33d4ff")
         with tab3:
-            st.area_chart(data=df_daily[['Curah Hujan (mm)']], color="#335eff")
+            # GANTI area_chart MENJADI bar_chart DI BAWAH INI
+            st.bar_chart(data=df_daily[['Curah Hujan (mm)']], color="#335eff")
         with tab4:
             st.line_chart(data=df_daily[['Kecepatan Angin (m/s)']], color="#a833ff")
         with tab5:
