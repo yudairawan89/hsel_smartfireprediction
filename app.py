@@ -364,9 +364,11 @@ if 'clean_df' in locals() and 'df' in locals() and not df.empty:
         # 5. Reset index agar Waktu_DT bisa dipakai oleh Altair
         df_vis = df_daily.reset_index()
         
-        # --- PENGATURAN SUMBU X KUSTOM (Format "%d %b" -> "01 Mar") ---
-        # Sumbu T (Temporal) memastikan tanggal diurutkan berdasarkan kalender, bukan abjad
-        x_axis = alt.X('Waktu_DT:T', axis=alt.Axis(format='%d %b', title='Tanggal', labelAngle=-45, grid=False))
+        # --- PENGATURAN SUMBU X KUSTOM ---
+        # format='%d %b %Y' akan menghasilkan "15 Mar 2026"
+        # tickCount=df_vis.shape[0] memaksa Altair untuk HANYA membuat 1 titik label per 1 hari (mencegah tanggal dobel)
+        x_axis = alt.X('Waktu_DT:T', 
+                       axis=alt.Axis(format='%d %b %Y', title='Tanggal', labelAngle=-45, grid=False, tickCount=df_vis.shape[0]))
 
         # 6. Render Tab Grafik
         tab_all, tab1, tab2, tab3, tab4, tab5 = st.tabs([
