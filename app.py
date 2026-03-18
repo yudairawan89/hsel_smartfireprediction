@@ -335,37 +335,35 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# === TAMBAHAN VISUALISASI TREN (RATA-RATA HARIAN) ===
+# === TAMBAHAN VISUALISASI TREN (RATA-RATA 7 HARI TERAKHIR) ===
 if 'clean_df' in locals() and 'df' in locals() and not df.empty:
-    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor (Rata-rata 30 Hari Terakhir)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor (Rata-rata 7 Hari Terakhir)</div>", unsafe_allow_html=True)
     
     df_chart = clean_df.copy()
     
-    # Bersihkan string waktu dan konversi ke format Pandas Datetime
+    # Bersihkan string waktu dan paksa menjadi format pandas Datetime
     waktu_clean = df['Waktu'].astype(str).str.replace(' - ', ' ', regex=False)
     df_chart['Waktu_DT'] = pd.to_datetime(waktu_clean, errors='coerce')
     
-    # Hapus baris yang gagal dikonversi menjadi Datetime
     df_chart = df_chart.dropna(subset=['Waktu_DT'])
     
     if not df_chart.empty:
-        # Ambil tanggalnya saja untuk Grouping harian
+        # 1. Ambil tanggalnya saja untuk Grouping
         df_chart['Tanggal'] = df_chart['Waktu_DT'].dt.date
         
-        # Kelompokkan rata-rata per tanggal
+        # 2. Kelompokkan dan hitung rata-rata per hari
         df_daily = df_chart.groupby('Tanggal')[fitur].mean().reset_index()
         
-        # Sortir data dari tanggal terlama ke terbaru (kronologis)
+        # 3. Urutkan berdasarkan Tanggal dari lama ke baru
         df_daily = df_daily.sort_values('Tanggal')
         
-        # Ambil hanya 30 hari data PALING BARU (berada di posisi paling bawah)
-        df_daily = df_daily.tail(30)
+        # 4. Ambil KHUSUS 7 HARI TERAKHIR (tail 7)
+        df_daily = df_daily.tail(7)
         
-        # KUNCI PERBAIKAN: Jadikan kolom 'Tanggal' sebagai Index tanpa diubah jadi string teks!
-        # Dengan begini, sumbu X akan diurutkan murni secara kronologis waktu, bukan alfabet
+        # 5. Format tanggal ke DatetimeIndex agar digambar sebagai Time-Series asli oleh Streamlit/Altair
+        df_daily['Tanggal'] = pd.to_datetime(df_daily['Tanggal'])
         df_daily = df_daily.set_index('Tanggal')
         
-        # Rename kolom agar sesuai standar Streamlit
         chart_rename = {
             'Tavg: Temperatur rata-rata (°C)': 'Suhu (°C)',
             'RH_avg: Kelembapan rata-rata (%)': 'Kelembapan (%)',
@@ -375,7 +373,6 @@ if 'clean_df' in locals() and 'df' in locals() and not df.empty:
         }
         df_daily = df_daily.rename(columns=chart_rename)
         
-        # Render Tab Grafiknya
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
             "🌡️ Suhu Udara",
             "💧 Kelembapan Udara",
