@@ -347,6 +347,16 @@ if 'clean_df' in locals() and 'df' in locals() and not df.empty:
     # Ambil 100 data terakhir agar chart tidak memberatkan aplikasi
     df_chart = df_chart.tail(100)
     
+    # PERBAIKAN: Rename kolom khusus untuk grafik agar tidak ada tanda titik dua (:)
+    chart_rename = {
+        'Tavg: Temperatur rata-rata (°C)': 'Suhu (°C)',
+        'RH_avg: Kelembapan rata-rata (%)': 'Kelembapan (%)',
+        'RR: Curah hujan (mm)': 'Curah Hujan (mm)',
+        'ff_avg: Kecepatan angin rata-rata (m/s)': 'Kecepatan Angin (m/s)',
+        'Kelembaban Permukaan Tanah': 'Kelembaban Tanah (%)'
+    }
+    df_chart = df_chart.rename(columns=chart_rename)
+    
     # Buat Tab untuk masing-masing parameter
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "🌡️ Suhu Udara",
@@ -357,15 +367,15 @@ if 'clean_df' in locals() and 'df' in locals() and not df.empty:
     ])
     
     with tab1:
-        st.line_chart(data=df_chart, x='Waktu', y=fitur[0], color="#ff5733")
+        st.line_chart(data=df_chart, x='Waktu', y='Suhu (°C)', color="#ff5733")
     with tab2:
-        st.line_chart(data=df_chart, x='Waktu', y=fitur[1], color="#33d4ff")
+        st.line_chart(data=df_chart, x='Waktu', y='Kelembapan (%)', color="#33d4ff")
     with tab3:
-        st.area_chart(data=df_chart, x='Waktu', y=fitur[2], color="#335eff")
+        st.area_chart(data=df_chart, x='Waktu', y='Curah Hujan (mm)', color="#335eff")
     with tab4:
-        st.line_chart(data=df_chart, x='Waktu', y=fitur[3], color="#a833ff")
+        st.line_chart(data=df_chart, x='Waktu', y='Kecepatan Angin (m/s)', color="#a833ff")
     with tab5:
-        st.line_chart(data=df_chart, x='Waktu', y=fitur[4], color="#33ff5e")
+        st.line_chart(data=df_chart, x='Waktu', y='Kelembaban Tanah (%)', color="#33ff5e")
 
 
 # === TAMPILKAN DATA LENGKAP ===
