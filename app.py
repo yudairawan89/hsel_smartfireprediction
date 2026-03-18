@@ -234,17 +234,17 @@ def dashboard_realtime():
             unsafe_allow_html=True
         )
 
-        with st.expander("Tindak Lanjut Instansi"):
+with st.expander("Tindak Lanjut Instansi"):
             if risk_label == "Low / Rendah":
                 st.markdown("""
 **Kondisi:**
 Tingkat risiko kebakaran rendah. Intensitas api pada kategori rendah. Api mudah dikendalikan dan cenderung dapat padam secara alami. Parameter lingkungan relatif stabil dan belum menunjukkan indikasi eskalasi signifikan.
 
 **Tindakan Instansi:**
-• Monitoring rutin kondisi lingkungan
-• Patroli berkala ringan
-• Edukasi preventif kepada masyarakat
-• Dokumentasi dan pelaporan kondisi normal
+1. Monitoring rutin kondisi lingkungan
+2. Patroli berkala ringan
+3. Edukasi preventif kepada masyarakat
+4. Dokumentasi dan pelaporan kondisi normal
 """)
             elif risk_label == "Moderate / Sedang":
                 st.markdown("""
@@ -252,10 +252,10 @@ Tingkat risiko kebakaran rendah. Intensitas api pada kategori rendah. Api mudah 
 Tingkat risiko kebakaran sedang. Intensitas api pada kategori sedang. Api relatif masih cukup mudah dikendalikan, namun terdapat indikasi peningkatan potensi akibat kondisi cuaca yang mulai mengarah pada kekeringan atau peningkatan suhu.
 
 **Tindakan Instansi:**
-• Peningkatan frekuensi patroli
-• Penyampaian peringatan dini terbatas kepada masyarakat
-• Koordinasi internal BPBD dan aparat desa
-• Pengawasan aktivitas pembakaran terbuka
+1. Peningkatan frekuensi patroli
+2. Penyampaian peringatan dini terbatas kepada masyarakat
+3. Koordinasi internal BPBD dan aparat desa
+4. Pengawasan aktivitas pembakaran terbuka
 """)
             elif risk_label == "High / Tinggi":
                 st.markdown("""
@@ -263,12 +263,12 @@ Tingkat risiko kebakaran sedang. Intensitas api pada kategori sedang. Api relati
 Tingkat risiko kebakaran tinggi. Intensitas api pada kategori tinggi. Api sulit dikendalikan dan berpotensi meluas apabila tidak segera ditangani. Parameter lingkungan menunjukkan kondisi kering dan mendukung penyebaran api.
 
 **Tindakan Instansi:**
-• Aktivasi pos siaga tingkat lokal
-• Penempatan personel siaga di titik rawan
-• Koordinasi dengan TNI/Polri dan Manggala Agni
-• Peringatan dini terbuka kepada masyarakat
-• Penyiapan peralatan pemadaman awal
-• Koordinasi awal dengan BMKG/BNPB terkait kemungkinan Operasi Modifikasi Cuaca (OMC) jika tren risiko meningkat
+1. Aktivasi pos siaga tingkat lokal
+2. Penempatan personel siaga di titik rawan
+3. Koordinasi dengan TNI/Polri dan Manggala Agni
+4. Peringatan dini terbuka kepada masyarakat
+5. Penyiapan peralatan pemadaman awal
+6. Koordinasi awal dengan BMKG/BNPB terkait kemungkinan Operasi Modifikasi Cuaca (OMC) jika tren risiko meningkat
 """)
             elif risk_label == "Very High / Sangat Tinggi":
                 st.markdown("""
@@ -276,14 +276,14 @@ Tingkat risiko kebakaran tinggi. Intensitas api pada kategori tinggi. Api sulit 
 Tingkat risiko kebakaran sangat tinggi. Intensitas api pada kategori sangat tinggi. Api sangat sulit dikendalikan dan berpotensi berkembang cepat serta meluas. Parameter meteorologis berada pada kondisi ekstrem (suhu tinggi, kelembaban rendah, curah hujan minim) yang sangat mendukung eskalasi kebakaran.
 
 **Tindakan Instansi:**
-• Penetapan status siaga darurat tingkat lokal
-• Aktivasi penuh posko tanggap darurat
-• Mobilisasi tim pemantauan dan pemadam
-• Koordinasi lintas sektor (BPBD, TNI, Polri, DLH, Manggala Agni)
-• Penyebaran peringatan dini melalui media resmi
-• Pengetatan larangan pembakaran terbuka
-• Persiapan logistik dan sumber daya darurat
-• Rekomendasi pelaksanaan Operasi Modifikasi Cuaca (OMC) melalui koordinasi dengan BMKG dan BNPB untuk meningkatkan peluang hujan buatan sebagai upaya mitigasi eskalasi kebakaran
+1. Penetapan status siaga darurat tingkat lokal
+2. Aktivasi penuh posko tanggap darurat
+3. Mobilisasi tim pemantauan dan pemadam
+4. Koordinasi lintas sektor (BPBD, TNI, Polri, DLH, Manggala Agni)
+5. Penyebaran peringatan dini melalui media resmi
+6. Pengetatan larangan pembakaran terbuka
+7. Persiapan logistik dan sumber daya darurat
+8. Rekomendasi pelaksanaan Operasi Modifikasi Cuaca (OMC) melalui koordinasi dengan BMKG dan BNPB untuk meningkatkan peluang hujan buatan sebagai upaya mitigasi eskalasi kebakaran
 """)
 
     with col_tengah:
