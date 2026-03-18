@@ -335,6 +335,39 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+
+# === TAMBAHAN VISUALISASI TREN ===
+if 'clean_df' in locals() and 'df' in locals() and not df.empty:
+    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor (100 Data Terakhir)</div>", unsafe_allow_html=True)
+    
+    # Gabungkan kolom 'Waktu' (diubah menjadi string) dengan data numerik yang sudah dibersihkan
+    df_chart = clean_df.copy()
+    df_chart['Waktu'] = df['Waktu'].astype(str)
+    
+    # Ambil 100 data terakhir agar chart tidak memberatkan aplikasi
+    df_chart = df_chart.tail(100)
+    
+    # Buat Tab untuk masing-masing parameter
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "🌡️ Suhu Udara",
+        "💧 Kelembapan Udara",
+        "🌧️ Curah Hujan",
+        "💨 Kecepatan Angin",
+        "🌱 Kelembapan Tanah"
+    ])
+    
+    with tab1:
+        st.line_chart(data=df_chart, x='Waktu', y=fitur[0], color="#ff5733")
+    with tab2:
+        st.line_chart(data=df_chart, x='Waktu', y=fitur[1], color="#33d4ff")
+    with tab3:
+        st.area_chart(data=df_chart, x='Waktu', y=fitur[2], color="#335eff")
+    with tab4:
+        st.line_chart(data=df_chart, x='Waktu', y=fitur[3], color="#a833ff")
+    with tab5:
+        st.line_chart(data=df_chart, x='Waktu', y=fitur[4], color="#33ff5e")
+
+
 # === TAMPILKAN DATA LENGKAP ===
 st.markdown("<div class='section-title'>Data Sensor Lengkap</div>", unsafe_allow_html=True)
 st.dataframe(df if 'df' in locals() else pd.DataFrame(), use_container_width=True)
@@ -557,4 +590,3 @@ st.markdown("""
     <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
-
