@@ -7,7 +7,11 @@ from io import BytesIO
 from streamlit_folium import folium_static
 import folium
 from PIL import Image
-import re  # Ditambahkan untuk proses cleansing teks
+import re
+
+# === TAMBAHAN LIBRARY SASTRAWI ===
+from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
+from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 
 # === PAGE CONFIG ===
 st.set_page_config(page_title="Smart Fire Prediction HSEL", page_icon="favicon.ico", layout="wide")
@@ -62,7 +66,7 @@ risk_styles = {
     "Very High / Sangat Tinggi": ("white", "red")
 }
 
-# === LOAD MODEL DAN SCALER ===
+# === LOAD MODEL, SCALER, DAN SASTRAWI ===
 @st.cache_resource
 def load_model():
     return joblib.load("HSEL_IoT_Model.joblib")
@@ -71,8 +75,21 @@ def load_model():
 def load_scaler():
     return joblib.load("scaler.joblib")
 
+@st.cache_resource
+def load_sastrawi():
+    # Inisialisasi Stopword
+    stop_factory = StopWordRemoverFactory()
+    stopword_remover = stop_factory.create_stop_word_remover()
+    
+    # Inisialisasi Stemmer
+    stem_factory = StemmerFactory()
+    stemmer = stem_factory.create_stemmer()
+    
+    return stopword_remover, stemmer
+
 model = load_model()
 scaler = load_scaler()
+stopword_remover, stemmer = load_sastrawi()
 
 # === KONFIG GOOGLE SHEET ===
 SHEET_ID = "1ZscUJ6SLPIF33t8ikVHUmR68b-y3Q9_r_p9d2rDRMCM"
@@ -81,7 +98,6 @@ SHEET_CSV_LINK = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?form
 
 # === LOAD DATA TANPA CACHE ===
 def load_data():
-    # Membaca dari Google Sheets (CSV export)
     return pd.read_csv(SHEET_CSV_LINK)
 
 # === HEADER ===
@@ -124,7 +140,6 @@ with realtime:
     if df is None or df.empty:
         st.warning("Data belum tersedia atau kosong di Google Sheets.")
     else:
-        # ======= PENYESUAIAN KOLUMNISASI DARI SHEET =======
         df.columns = [c.strip() for c in df.columns]
 
         rename_map_candidates = {
@@ -408,20 +423,39 @@ with btn_pred_text:
                 vectorizer = joblib.load("tfidf_vectorizer.joblib")
                 model_text = joblib.load("stacking_text_model.joblib")
 
-                # --- PROSES PRE-PROCESSING TEKS ---
+                # --- PROSES PRE-PROCESSING TEKS HSEL ---
+                # 1. Raw Text
                 raw_text = input_text
-                text_lower = raw_text.lower()
-                text_clean = re.sub(r'[^a-zA-Z\s]', '', text_lower)
-                tokens = text_clean.split()
-                text_final = " ".join(tokens)
                 
-                X_trans = vectorizer.transform([text_final])
+                # 2. Case Folding
+                text_lower = raw_text.lower()
+                
+                # 3. Cleansing
+                text_clean = re.sub(r'[^a-zA-Z\s]', '', text_lower)
+                
+                # 4. Stopword Removal
+                text_stopword = stopword_remover.remove(text_clean)
+                
+                # 5. Tokenization
+                tokens = text_stopword.split()
+                # Format custom khusus tampilan Tokenizing sesuai request (menyamping dengan koma)
+                token_display = "[" + ", ".join(tokens) + "]"
+                
+                # 6. Stemming
+                # Karena Stemmer Sastrawi membutuhkan input bentuk string, kita gabung tokennya
+                text_stemmed = stemmer.stem(" ".join(tokens))
+                
+                # 7. TF-IDF
+                X_trans = vectorizer.transform([text_stemmed])
 
+                # Simpan seluruh status preprocessing ke session state
                 st.session_state.text_preprocessing = {
                     "raw": raw_text,
                     "case_folding": text_lower,
                     "cleansing": text_clean,
-                    "tokenizing": tokens,
+                    "stopword": text_stopword,
+                    "tokenizing": token_display,
+                    "stemming": text_stemmed,
                     "tfidf_shape": X_trans.shape
                 }
 
@@ -453,11 +487,18 @@ if st.session_state.text_result:
 
             st.markdown("**3. Cleansing (Penghapusan Karakter Khusus & Angka)**")
             st.info(steps.get("cleansing", "-"))
+            
+            st.markdown("**4. Stopword (Penghapusan Kata Hubung)**")
+            st.info(steps.get("stopword", "-"))
 
-            st.markdown("**4. Tokenization (Pemotongan Kata)**")
-            st.write(steps.get("tokenizing", []))
+            st.markdown("**5. Tokenization (Pemotongan Kata)**")
+            # Menampilkan token menggunakan st.info dengan format array koma yang rapi
+            st.info(steps.get("tokenizing", "[]"))
+            
+            st.markdown("**6. Stemming (Pemotongan Imbuhan)**")
+            st.info(steps.get("stemming", "-"))
 
-            st.markdown("**5. Ekstraksi Fitur (TF-IDF)**")
+            st.markdown("**7. Ekstraksi Fitur (TF-IDF)**")
             st.code(f"Shape Matriks TF-IDF: {steps.get('tfidf_shape', '')}")
 
     hasil = st.session_state.text_result
