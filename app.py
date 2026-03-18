@@ -7,6 +7,7 @@ from io import BytesIO
 from streamlit_folium import folium_static
 import folium
 from PIL import Image
+import re  # Ditambahkan untuk proses cleansing teks
 
 # === PAGE CONFIG ===
 st.set_page_config(page_title="Smart Fire Prediction HSEL", page_icon="favicon.ico", layout="wide")
@@ -124,13 +125,8 @@ with realtime:
         st.warning("Data belum tersedia atau kosong di Google Sheets.")
     else:
         # ======= PENYESUAIAN KOLUMNISASI DARI SHEET =======
-        # Header yang diharapkan pada sheet (sesuai gambar):
-        # Waktu | Suhu Udara | Kelembapan Udara | Curah Hujan/Jam | Kecepatan Angin (ms) | Kelembapan Tanah
-
-        # Normalisasi nama kolom (trim spasi)
         df.columns = [c.strip() for c in df.columns]
 
-        # Pemetaan kandidat -> nama kanonik model
         rename_map_candidates = {
             'Waktu': ['Waktu', 'Timestamp', 'Time'],
             'Tavg: Temperatur rata-rata (°C)': ['Suhu Udara', 'Suhu', 'Temperatur', 'Suhu (°C)'],
@@ -140,7 +136,6 @@ with realtime:
             'Kelembaban Permukaan Tanah': ['Kelembapan Tanah', 'Kelembaban Tanah', 'Soil Moisture']
         }
 
-        # Bangun peta rename aktual berdasarkan kolom yang tersedia
         actual_rename = {}
         for target_name, candidates in rename_map_candidates.items():
             found = None
@@ -161,14 +156,12 @@ with realtime:
             'Kelembaban Permukaan Tanah'
         ]
 
-        # Pastikan semua kolom fitur + Waktu ada
         missing = [c for c in fitur + ['Waktu'] if c not in df.columns]
         if missing:
             st.error("Kolom wajib tidak ditemukan di Sheets: " + ", ".join(missing))
             st.dataframe(df.head(), use_container_width=True)
             st.stop()
 
-        # Siapkan fitur numerik (ganti koma -> titik, cast ke float)
         clean_df = df[fitur].copy()
         for col in fitur:
             clean_df[col] = (
@@ -179,17 +172,14 @@ with realtime:
             )
         clean_df = clean_df.apply(pd.to_numeric, errors='coerce').fillna(0)
 
-        # Prediksi
         scaled_all = scaler.transform(clean_df)
         predictions = [convert_to_label(p) for p in model.predict(scaled_all)]
         df["Prediksi Kebakaran"] = predictions
 
-        # Baris terakhir untuk ringkasan
         last_row = df.iloc[-1]
-        last_num = clean_df.iloc[-1]  # versi numerik untuk formatting
+        last_num = clean_df.iloc[-1]
         waktu = pd.to_datetime(last_row['Waktu'], errors='coerce')
         if pd.isna(waktu):
-            # fallback jika format waktu tidak kompatibel
             try:
                 waktu = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
             except Exception:
@@ -210,7 +200,6 @@ with realtime:
             "Value": [f"{float(last_num[col]):.1f}" for col in fitur]
         })
 
-        # 3 kolom tampilan
         col_kiri, col_tengah, col_kanan = st.columns([1.2, 1.2, 1.2])
 
         with col_kiri:
@@ -231,60 +220,26 @@ with realtime:
                 unsafe_allow_html=True
             )
 
-            # ================= TINDAK LANJUT =================
             with st.expander("Tindak Lanjut Instansi"):
                 if risk_label == "Low / Rendah":
                     st.markdown("""
-**Kondisi**
-
-Risiko kebakaran rendah.
-
-**Tindakan**
-
-• Monitoring rutin kondisi lingkungan  
-• Patroli berkala ringan  
-• Edukasi preventif kepada masyarakat  
-• Dokumentasi kondisi normal
+**Kondisi**\nRisiko kebakaran rendah.\n
+**Tindakan**\n• Monitoring rutin kondisi lingkungan\n• Patroli berkala ringan\n• Edukasi preventif kepada masyarakat\n• Dokumentasi kondisi normal
 """)
                 elif risk_label == "Moderate / Sedang":
                     st.markdown("""
-**Kondisi**
-
-Risiko kebakaran sedang.
-
-**Tindakan**
-
-• Peningkatan frekuensi patroli  
-• Peringatan dini terbatas kepada masyarakat  
-• Koordinasi BPBD dan aparat desa  
-• Pengawasan aktivitas pembakaran terbuka
+**Kondisi**\nRisiko kebakaran sedang.\n
+**Tindakan**\n• Peningkatan frekuensi patroli\n• Peringatan dini terbatas kepada masyarakat\n• Koordinasi BPBD dan aparat desa\n• Pengawasan aktivitas pembakaran terbuka
 """)
                 elif risk_label == "High / Tinggi":
                     st.markdown("""
-**Kondisi**
-
-Risiko kebakaran tinggi.
-
-**Tindakan**
-
-• Aktivasi pos siaga lokal  
-• Penempatan personel siaga  
-• Koordinasi TNI/Polri dan Manggala Agni  
-• Penyiapan alat pemadaman awal
+**Kondisi**\nRisiko kebakaran tinggi.\n
+**Tindakan**\n• Aktivasi pos siaga lokal\n• Penempatan personel siaga\n• Koordinasi TNI/Polri dan Manggala Agni\n• Penyiapan alat pemadaman awal
 """)
                 elif risk_label == "Very High / Sangat Tinggi":
                     st.markdown("""
-**Kondisi**
-
-Risiko kebakaran sangat tinggi.
-
-**Tindakan**
-
-• Aktivasi posko tanggap darurat  
-• Mobilisasi tim pemadam  
-• Koordinasi lintas sektor  
-• Penyiapan logistik darurat  
-• Rekomendasi Operasi Modifikasi Cuaca
+**Kondisi**\nRisiko kebakaran sangat tinggi.\n
+**Tindakan**\n• Aktivasi posko tanggap darurat\n• Mobilisasi tim pemadam\n• Koordinasi lintas sektor\n• Penyiapan logistik darurat\n• Rekomendasi Operasi Modifikasi Cuaca
 """)
 
         with col_tengah:
@@ -369,7 +324,6 @@ st.markdown("""
 st.markdown("<div class='section-title'>Data Sensor Lengkap</div>", unsafe_allow_html=True)
 st.dataframe(df if 'df' in locals() else pd.DataFrame(), use_container_width=True)
 
-# Tombol untuk download sebagai file Excel
 def to_excel(df_to_save: pd.DataFrame) -> bytes:
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
@@ -422,7 +376,7 @@ with btn_reset:
     if st.button("🧼 Reset Manual"):
         st.session_state.manual_input = {"suhu": 0.0, "kelembapan": 0.0, "curah": 0.0, "angin": 0.0, "tanah": 0.0}
         st.session_state.manual_result = None
-        st.experimental_rerun()
+        st.rerun()
 
 if st.session_state.manual_result:
     hasil = st.session_state.manual_result
@@ -439,34 +393,77 @@ if "text_input" not in st.session_state:
     st.session_state.text_input = ""
 if "text_result" not in st.session_state:
     st.session_state.text_result = None
+if "text_preprocessing" not in st.session_state:
+    st.session_state.text_preprocessing = {}
 
 input_text = st.text_area("Masukkan deskripsi lingkungan:", value=st.session_state.text_input, height=120)
 
 btn_pred_text, btn_reset_text, _ = st.columns([1, 1, 8])
 with btn_pred_text:
     if st.button("🔍 Prediksi Teks"):
-        try:
-            vectorizer = joblib.load("tfidf_vectorizer.joblib")
-            model_text = joblib.load("stacking_text_model.joblib")
-            X_trans = vectorizer.transform([input_text])
-            pred = model_text.predict(X_trans)[0]
-            label_text = convert_to_label(pred)
-            st.session_state.text_input = input_text
-            st.session_state.text_result = label_text
-        except Exception as e:
-            st.error(f"Terjadi kesalahan saat memuat model atau memproses input: {e}")
+        if input_text.strip() == "":
+            st.warning("Harap masukkan deskripsi teks terlebih dahulu.")
+        else:
+            try:
+                vectorizer = joblib.load("tfidf_vectorizer.joblib")
+                model_text = joblib.load("stacking_text_model.joblib")
+
+                # --- PROSES PRE-PROCESSING TEKS ---
+                raw_text = input_text
+                text_lower = raw_text.lower()
+                text_clean = re.sub(r'[^a-zA-Z\s]', '', text_lower)
+                tokens = text_clean.split()
+                text_final = " ".join(tokens)
+                
+                X_trans = vectorizer.transform([text_final])
+
+                st.session_state.text_preprocessing = {
+                    "raw": raw_text,
+                    "case_folding": text_lower,
+                    "cleansing": text_clean,
+                    "tokenizing": tokens,
+                    "tfidf_shape": X_trans.shape
+                }
+
+                pred = model_text.predict(X_trans)[0]
+                label_text = convert_to_label(pred)
+                
+                st.session_state.text_input = input_text
+                st.session_state.text_result = label_text
+
+            except Exception as e:
+                st.error(f"Terjadi kesalahan saat memuat model atau memproses input: {e}")
 
 with btn_reset_text:
     if st.button("🧼 Reset Teks"):
         st.session_state.text_input = ""
         st.session_state.text_result = None
-        st.experimental_rerun()
+        st.session_state.text_preprocessing = {}
+        st.rerun()
 
 if st.session_state.text_result:
+    with st.expander("🛠️ Klik untuk melihat hasil setiap tahapan Pre-processing Data Teks", expanded=False):
+        steps = st.session_state.text_preprocessing
+        if steps:
+            st.markdown("**1. Original Text (Teks Mentah)**")
+            st.info(steps.get("raw", "-"))
+
+            st.markdown("**2. Case Folding (Pengecilan Huruf)**")
+            st.info(steps.get("case_folding", "-"))
+
+            st.markdown("**3. Cleansing (Penghapusan Karakter Khusus & Angka)**")
+            st.info(steps.get("cleansing", "-"))
+
+            st.markdown("**4. Tokenization (Pemotongan Kata)**")
+            st.write(steps.get("tokenizing", []))
+
+            st.markdown("**5. Ekstraksi Fitur (TF-IDF)**")
+            st.code(f"Shape Matriks TF-IDF: {steps.get('tfidf_shape', '')}")
+
     hasil = st.session_state.text_result
     font, bg = risk_styles.get(hasil, ("black", "white"))
     st.markdown(
-        f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px;'>"
+        f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top: 15px; font-size: 16px;'>"
         f"Hasil Prediksi Tingkat Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True
     )
 
