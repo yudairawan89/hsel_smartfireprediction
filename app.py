@@ -558,18 +558,3 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# === FOOTER ===
-st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("""
-<div style='
-    margin-top: 20px;
-    background-color: black;
-    padding: 10px 20px;
-    border-radius: 10px;
-    text-align: center;
-    color: white;
-'>
-    <p style='margin: 0; font-size: 30px; font-weight: bold; line-height: 1.2;'>Smart Fire Prediction HSEL Model</p>
-    <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
-</div>
-""", unsafe_allow_html=True)
