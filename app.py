@@ -335,48 +335,66 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
-# === TAMBAHAN VISUALISASI TREN ===
+# === TAMBAHAN VISUALISASI TREN (RATA-RATA HARIAN) ===
 if 'clean_df' in locals() and 'df' in locals() and not df.empty:
-    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor (100 Data Terakhir)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor (Rata-rata Harian)</div>", unsafe_allow_html=True)
     
-    # Gabungkan kolom 'Waktu' (diubah menjadi string) dengan data numerik yang sudah dibersihkan
     df_chart = clean_df.copy()
-    df_chart['Waktu'] = df['Waktu'].astype(str)
     
-    # Ambil 100 data terakhir agar chart tidak memberatkan aplikasi
-    df_chart = df_chart.tail(100)
+    # Bersihkan string waktu (misal menghapus " - " jika ada) agar formatnya dikenali Pandas
+    waktu_clean = df['Waktu'].astype(str).str.replace(' - ', ' ', regex=False)
+    df_chart['Waktu_DT'] = pd.to_datetime(waktu_clean, errors='coerce')
     
-    # PERBAIKAN: Rename kolom khusus untuk grafik agar tidak ada tanda titik dua (:)
-    chart_rename = {
-        'Tavg: Temperatur rata-rata (°C)': 'Suhu (°C)',
-        'RH_avg: Kelembapan rata-rata (%)': 'Kelembapan (%)',
-        'RR: Curah hujan (mm)': 'Curah Hujan (mm)',
-        'ff_avg: Kecepatan angin rata-rata (m/s)': 'Kecepatan Angin (m/s)',
-        'Kelembaban Permukaan Tanah': 'Kelembaban Tanah (%)'
-    }
-    df_chart = df_chart.rename(columns=chart_rename)
+    # Hapus baris yang gagal dikonversi menjadi Datetime
+    df_chart = df_chart.dropna(subset=['Waktu_DT'])
     
-    # Buat Tab untuk masing-masing parameter
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "🌡️ Suhu Udara",
-        "💧 Kelembapan Udara",
-        "🌧️ Curah Hujan",
-        "💨 Kecepatan Angin",
-        "🌱 Kelembapan Tanah"
-    ])
-    
-    with tab1:
-        st.line_chart(data=df_chart, x='Waktu', y='Suhu (°C)', color="#ff5733")
-    with tab2:
-        st.line_chart(data=df_chart, x='Waktu', y='Kelembapan (%)', color="#33d4ff")
-    with tab3:
-        st.area_chart(data=df_chart, x='Waktu', y='Curah Hujan (mm)', color="#335eff")
-    with tab4:
-        st.line_chart(data=df_chart, x='Waktu', y='Kecepatan Angin (m/s)', color="#a833ff")
-    with tab5:
-        st.line_chart(data=df_chart, x='Waktu', y='Kelembaban Tanah (%)', color="#33ff5e")
-
+    if not df_chart.empty:
+        # Ekstrak tanggalnya saja (tanpa jam/menit/detik) untuk Grouping
+        df_chart['Tanggal_Date'] = df_chart['Waktu_DT'].dt.date
+        
+        # Kelompokkan data per tanggal dan hitung nilai rata-ratanya (Mean)
+        df_daily = df_chart.groupby('Tanggal_Date')[fitur].mean().reset_index()
+        
+        # Pastikan data diurutkan dari waktu terlama ke terbaru
+        df_daily = df_daily.sort_values('Tanggal_Date')
+        
+        # Ambil 30 hari terakhir agar visualisasi tidak terlalu rapat
+        df_daily = df_daily.tail(30)
+        
+        # Format ulang label sumbu X menjadi lebih cantik (Contoh: 25 Feb 2026)
+        df_daily['Tanggal'] = pd.to_datetime(df_daily['Tanggal_Date']).dt.strftime('%d %b %Y')
+        
+        # Rename kolom khusus untuk grafik agar sesuai standar penamaan Altair Streamlit
+        chart_rename = {
+            'Tavg: Temperatur rata-rata (°C)': 'Suhu (°C)',
+            'RH_avg: Kelembapan rata-rata (%)': 'Kelembapan (%)',
+            'RR: Curah hujan (mm)': 'Curah Hujan (mm)',
+            'ff_avg: Kecepatan angin rata-rata (m/s)': 'Kecepatan Angin (m/s)',
+            'Kelembaban Permukaan Tanah': 'Kelembaban Tanah (%)'
+        }
+        df_daily = df_daily.rename(columns=chart_rename)
+        
+        # Buat Tab untuk masing-masing grafik
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "🌡️ Suhu Udara",
+            "💧 Kelembapan Udara",
+            "🌧️ Curah Hujan",
+            "💨 Kecepatan Angin",
+            "🌱 Kelembapan Tanah"
+        ])
+        
+        with tab1:
+            st.line_chart(data=df_daily, x='Tanggal', y='Suhu (°C)', color="#ff5733")
+        with tab2:
+            st.line_chart(data=df_daily, x='Tanggal', y='Kelembapan (%)', color="#33d4ff")
+        with tab3:
+            st.area_chart(data=df_daily, x='Tanggal', y='Curah Hujan (mm)', color="#335eff")
+        with tab4:
+            st.line_chart(data=df_daily, x='Tanggal', y='Kecepatan Angin (m/s)', color="#a833ff")
+        with tab5:
+            st.line_chart(data=df_daily, x='Tanggal', y='Kelembaban Tanah (%)', color="#33ff5e")
+    else:
+        st.info("Data tidak dapat diproses untuk grafik. Pastikan format kolom Waktu pada file CSV/Google Sheets valid.")
 
 # === TAMPILKAN DATA LENGKAP ===
 st.markdown("<div class='section-title'>Data Sensor Lengkap</div>", unsafe_allow_html=True)
