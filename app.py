@@ -438,15 +438,26 @@ with btn_pred_text:
                 
                 # 5. Tokenization
                 tokens = text_stopword.split()
-                # Format custom khusus tampilan Tokenizing sesuai request (menyamping dengan koma)
                 token_display = "[" + ", ".join(tokens) + "]"
                 
                 # 6. Stemming
-                # Karena Stemmer Sastrawi membutuhkan input bentuk string, kita gabung tokennya
                 text_stemmed = stemmer.stem(" ".join(tokens))
                 
-                # 7. TF-IDF
+                # 7. TF-IDF Transform
                 X_trans = vectorizer.transform([text_stemmed])
+
+                # --- EKSTRAK BOBOT TF-IDF UNTUK DITAMPILKAN ---
+                feature_names = vectorizer.get_feature_names_out()
+                dense_vector = X_trans.todense().tolist()[0]
+                
+                # Ambil hanya kata yang memiliki bobot > 0, lalu bulatkan 4 angka di belakang koma
+                tfidf_details = [{"Kata (Term)": word, "Skor TF-IDF": round(score, 4)} 
+                                 for word, score in zip(feature_names, dense_vector) if score > 0]
+                
+                # Urutkan dari bobot tertinggi ke terendah
+                tfidf_details = sorted(tfidf_details, key=lambda x: x["Skor TF-IDF"], reverse=True)
+                df_tfidf = pd.DataFrame(tfidf_details)
+                # ----------------------------------------------
 
                 # Simpan seluruh status preprocessing ke session state
                 st.session_state.text_preprocessing = {
@@ -456,7 +467,8 @@ with btn_pred_text:
                     "stopword": text_stopword,
                     "tokenizing": token_display,
                     "stemming": text_stemmed,
-                    "tfidf_shape": X_trans.shape
+                    "tfidf_shape": X_trans.shape,
+                    "tfidf_df": df_tfidf # Menyimpan dataframe bobot
                 }
 
                 pred = model_text.predict(X_trans)[0]
@@ -492,7 +504,6 @@ if st.session_state.text_result:
             st.info(steps.get("stopword", "-"))
 
             st.markdown("**5. Tokenization (Pemotongan Kata)**")
-            # Menampilkan token menggunakan st.info dengan format array koma yang rapi
             st.info(steps.get("tokenizing", "[]"))
             
             st.markdown("**6. Stemming (Pemotongan Imbuhan)**")
@@ -500,6 +511,14 @@ if st.session_state.text_result:
 
             st.markdown("**7. Ekstraksi Fitur (TF-IDF)**")
             st.code(f"Shape Matriks TF-IDF: {steps.get('tfidf_shape', '')}")
+            
+            # Menampilkan tabel bobot TF-IDF
+            df_tfidf_display = steps.get("tfidf_df")
+            if df_tfidf_display is not None and not df_tfidf_display.empty:
+                st.markdown("<span style='font-size:14px; color:gray;'>Rincian Bobot TF-IDF (Diurutkan dari tertinggi):</span>", unsafe_allow_html=True)
+                st.dataframe(df_tfidf_display, use_container_width=True)
+            elif df_tfidf_display is not None and df_tfidf_display.empty:
+                st.warning("Kata-kata pada input ini tidak dikenali dalam kosakata (vocabulary) model Anda.")
 
     hasil = st.session_state.text_result
     font, bg = risk_styles.get(hasil, ("black", "white"))
