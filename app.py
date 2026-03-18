@@ -234,7 +234,7 @@ def dashboard_realtime():
             unsafe_allow_html=True
         )
 
-with st.expander("Tindak Lanjut Instansi"):
+        with st.expander("Tindak Lanjut Instansi"):
             if risk_label == "Low / Rendah":
                 st.markdown("""
 **Kondisi:**
