@@ -238,7 +238,7 @@ def dashboard_realtime():
             unsafe_allow_html=True
         )
 
-        # =================================================================
+ # =================================================================
         # XAI SHAP IMPLEMENTATION
         # =================================================================
         with st.expander("📊 Analisis Keputusan Model (XAI)"):
@@ -257,22 +257,32 @@ def dashboard_realtime():
                 data_realtime_raw = clean_df.iloc[-1:].values 
                 shap_values.data = data_realtime_raw
                 
-                # 4. Buat figure matplotlib untuk Waterfall Plot dengan ukuran font dan canvas yang disesuaikan
-                plt.rcParams.update({'font.size': 14}) # Perbesar font teks
-                fig, ax = plt.subplots(figsize=(8, 5)) # Perlebar ukuran figure (kanvas)
-                
-                # Sekarang shap_values[0] akan mengambil data yang sudah di-overwrite
+                # 4. Biarkan SHAP menggambar grafiknya terlebih dahulu
                 shap.plots.waterfall(shap_values[0], show=False)
                 
-                # Tampilkan di Streamlit dengan tight layout agar teks tidak terpotong
-                st.pyplot(fig, bbox_inches='tight') 
+                # 5. PERBAIKAN FINAL: Paksa perbesar ukuran font secara manual
+                fig = plt.gcf()
+                fig.set_size_inches(10, 6) # Paksa kanvas lebih lebar dan tinggi (10x6)
+                ax = plt.gca()
                 
-                # Bersihkan figure dan kembalikan font ke normal agar tidak memengaruhi komponen lain
-                plt.clf() 
-                plt.rcParams.update({'font.size': 10})
+                # Perbesar font untuk sumbu (nama fitur di kiri dan angka probabilitas di bawah)
+                ax.tick_params(axis='both', which='major', labelsize=14) 
+                if ax.xaxis.label:
+                    ax.xaxis.label.set_size(14)
+                
+                # Perbesar font untuk semua teks/angka di dalam balok merah dan biru
+                for text in ax.texts:
+                    text.set_fontsize(14)
+                
+                # Tampilkan di Streamlit dengan DPI=300 agar gambar sangat tajam dan tidak pecah
+                st.pyplot(fig, bbox_inches='tight', dpi=300) 
+                plt.clf() # Bersihkan figure
                 
             except Exception as e:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
+
+
+        
 
         with st.expander("Tindak Lanjut Instansi"):
             if risk_label == "Low / Rendah":
