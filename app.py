@@ -238,7 +238,7 @@ def dashboard_realtime():
             unsafe_allow_html=True
         )
 
-# =================================================================
+        # =================================================================
         # XAI SHAP IMPLEMENTATION
         # =================================================================
         with st.expander("📊 Analisis Keputusan Model (XAI)"):
@@ -253,13 +253,15 @@ def dashboard_realtime():
                 explainer = shap.Explainer(model.predict, background_data) 
                 shap_values = explainer(data_realtime_scaled)
                 
-                # 3. PERBAIKAN: Timpa label nilai pada grafik dengan data asli (raw data)
-                # Ambil baris terakhir dari clean_df (data sebelum di-scale) dan jadikan array
-                raw_values = clean_df.iloc[-1].values 
-                shap_values[0].data = raw_values
+                # 3. PERBAIKAN FINAL: Timpa data pada objek UTAMA (bukan slice [0]) 
+                # menggunakan array 2D dari clean_df baris terakhir.
+                data_realtime_raw = clean_df.iloc[-1:].values 
+                shap_values.data = data_realtime_raw
                 
                 # 4. Buat figure matplotlib untuk Waterfall Plot
                 fig, ax = plt.subplots(figsize=(6, 4))
+                
+                # Sekarang shap_values[0] akan mengambil data yang sudah di-overwrite
                 shap.plots.waterfall(shap_values[0], show=False)
                 
                 # Tampilkan di Streamlit
@@ -268,9 +270,6 @@ def dashboard_realtime():
                 
             except Exception as e:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
-
-
-        
 
         with st.expander("Tindak Lanjut Instansi"):
             if risk_label == "Low / Rendah":
@@ -335,7 +334,6 @@ Tingkat risiko kebakaran sangat tinggi. Intensitas api pada kategori sangat ting
         }
         marker_color = color_map.get(risk_label, "gray")
 
-        # Menggunakan float() untuk mencegah SyntaxError dari pandas series
         popup_text = folium.Popup(f"""
             <div style='width: 230px; font-size: 13px; line-height: 1.5;'>
             <b>Prediksi:</b> {risk_label}<br>
