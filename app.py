@@ -9,6 +9,10 @@ from PIL import Image
 import re
 import altair as alt
 
+# === TAMBAHAN LIBRARY UNTUK XAI ===
+import shap
+import matplotlib.pyplot as plt
+
 # === TAMBAHAN LIBRARY SASTRAWI ===
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
@@ -233,6 +237,55 @@ def dashboard_realtime():
             f"<span style='text-decoration: underline; font-size: 22px;'>{risk_label}</span></p>",
             unsafe_allow_html=True
         )
+# ... (kode sebelumnya di dalam def dashboard_realtime) ...
+    
+    with col_kiri:
+        st.markdown("<h5 style='text-align: center;'>Data Sensor Realtime</h5>", unsafe_allow_html=True)
+        
+        # ... (kode tabel html yang menampilkan Variabel dan Value) ...
+
+        st.markdown(
+            f"<p style='background-color:{bg}; color:{font}; padding:10px; border-radius:8px; font-weight:bold;'>"
+            f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran: "
+            f"<span style='text-decoration: underline; font-size: 22px;'>{risk_label}</span></p>",
+            unsafe_allow_html=True
+        )
+
+
+        
+        # =================================================================
+        # PASTE KODE XAI SHAP DI SINI (Pastikan indentasi sejajar)
+        # =================================================================
+        with st.expander("📊 Analisis Keputusan Model (XAI)"):
+            st.markdown("<span style='font-size:14px; color:gray;'>Grafik di bawah menunjukkan seberapa besar setiap parameter sensor berkontribusi terhadap prediksi saat ini.</span>", unsafe_allow_html=True)
+            
+            try:
+                # Menggunakan baris data terakhir yang sudah di-scale
+                data_realtime_scaled = scaled_all[-1:] 
+                
+                # Inisialisasi Explainer
+                explainer = shap.Explainer(model, scaled_all) 
+                shap_values = explainer(data_realtime_scaled)
+                
+                # Buat figure matplotlib untuk Waterfall Plot
+                fig, ax = plt.subplots(figsize=(4, 3))
+                shap.plots.waterfall(shap_values[0], show=False)
+                
+                # Tampilkan di Streamlit
+                st.pyplot(fig)
+                plt.clf() # Bersihkan figure
+                
+            except Exception as e:
+                st.info(f"Visualisasi XAI belum dapat diproses: {e}")
+        # =================================================================
+
+        with st.expander("Tindak Lanjut Instansi"):
+            if risk_label == "Low / Rendah":
+                st.markdown("""
+**Kondisi:**
+Tingkat risiko kebakaran rendah. Intensitas api pada kategori rendah...
+
+
 
         with st.expander("Tindak Lanjut Instansi"):
             if risk_label == "Low / Rendah":
