@@ -257,46 +257,37 @@ def dashboard_realtime():
                 data_realtime_raw = clean_df.iloc[-1:].values 
                 shap_values.data = data_realtime_raw
                 
-                # 4. Biarkan SHAP menggambar grafiknya terlebih dahulu
+                # 4. PERBAIKAN FINAL: Buat "Kanvas" (Figure) terlebih dahulu sebelum SHAP dipanggil
+                plt.rcParams.update({'font.size': 14}) # Perbesar ukuran font
+                fig, ax = plt.subplots(figsize=(10, 6)) # Kunci ukuran dan objek figure
+                
+                # Biarkan SHAP menggambar di kanvas 'ax' yang baru saja kita buat
                 shap.plots.waterfall(shap_values[0], show=False)
                 
-                # 5. PERBAIKAN: Menambahkan Persentase ke dalam Teks Balok
-                fig = plt.gcf()
-                fig.set_size_inches(10, 6)
-                ax = plt.gca()
-                
-                # Perbesar ukuran font sumbu
-                ax.tick_params(axis='both', which='major', labelsize=14) 
-                if ax.xaxis.label:
-                    ax.xaxis.label.set_size(14)
-                
-                # Hitung total absolut kontribusi (sebagai 100% basis perhitungan)
+                # 5. Menambahkan Persentase ke dalam Teks Balok
                 total_abs_shap = sum(abs(v) for v in shap_values[0].values)
                 
-                # Loop untuk setiap elemen teks di dalam grafik
                 for text in ax.texts:
-                    text.set_fontsize(14) # Set ukuran font
-                    
                     text_str = text.get_text().strip()
-                    # SHAP sering menggunakan karakter minus unicode '−' (U+2212)
-                    # Kita ganti ke '-' keyboard standar agar Python bisa membacanya sebagai angka (float)
+                    # Ubah minus unicode menjadi minus standar agar float() tidak error
                     clean_str = text_str.replace('−', '-')
                     
                     try:
-                        # Jika teks bisa diubah menjadi angka (berarti itu adalah teks di dalam balok)
                         val = float(clean_str)
                         if total_abs_shap > 0:
-                            # Hitung persentase kontribusi
                             pct = (abs(val) / total_abs_shap) * 100
-                            # Update teks dengan tambahan persentase
+                            # Timpa teks lama dengan format baru (nilai + persentase)
                             text.set_text(f"{text_str} ({pct:.1f}%)")
                     except ValueError:
-                        # Jika error (teks bukan angka tunggal, misal label "f(x) = ..."), biarkan saja
+                        # Abaikan jika teks bukan angka (misal: tulisan "f(x)")
                         pass
                 
-                # Tampilkan di Streamlit dengan DPI tinggi agar tajam
+                # Tampilkan di Streamlit dengan DPI tinggi menggunakan 'fig' yang sudah aman
                 st.pyplot(fig, bbox_inches='tight', dpi=300) 
+                
+                # Bersihkan figure dan kembalikan font ke normal
                 plt.clf()
+                plt.rcParams.update({'font.size': 10})
                 
             except Exception as e:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
