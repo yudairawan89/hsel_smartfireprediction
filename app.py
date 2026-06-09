@@ -141,7 +141,7 @@ def dashboard_realtime():
 
     if df is None or df.empty:
         st.warning("Data belum tersedia atau kosong di Google Sheets.")
-        return # Menghentikan fungsi jika data kosong
+        return 
     
     df.columns = [c.strip() for c in df.columns]
 
@@ -237,24 +237,9 @@ def dashboard_realtime():
             f"<span style='text-decoration: underline; font-size: 22px;'>{risk_label}</span></p>",
             unsafe_allow_html=True
         )
-# ... (kode sebelumnya di dalam def dashboard_realtime) ...
-    
-    with col_kiri:
-        st.markdown("<h5 style='text-align: center;'>Data Sensor Realtime</h5>", unsafe_allow_html=True)
-        
-        # ... (kode tabel html yang menampilkan Variabel dan Value) ...
 
-        st.markdown(
-            f"<p style='background-color:{bg}; color:{font}; padding:10px; border-radius:8px; font-weight:bold;'>"
-            f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran: "
-            f"<span style='text-decoration: underline; font-size: 22px;'>{risk_label}</span></p>",
-            unsafe_allow_html=True
-        )
-
-
-        
         # =================================================================
-        # PASTE KODE XAI SHAP DI SINI (Pastikan indentasi sejajar)
+        # XAI SHAP IMPLEMENTATION
         # =================================================================
         with st.expander("📊 Analisis Keputusan Model (XAI)"):
             st.markdown("<span style='font-size:14px; color:gray;'>Grafik di bawah menunjukkan seberapa besar setiap parameter sensor berkontribusi terhadap prediksi saat ini.</span>", unsafe_allow_html=True)
@@ -277,15 +262,6 @@ def dashboard_realtime():
                 
             except Exception as e:
                 st.info(f"Visualisasi XAI belum dapat diproses: {e}")
-        # =================================================================
-
-        with st.expander("Tindak Lanjut Instansi"):
-            if risk_label == "Low / Rendah":
-                st.markdown("""
-**Kondisi:**
-Tingkat risiko kebakaran rendah. Intensitas api pada kategori rendah...
-
-
 
         with st.expander("Tindak Lanjut Instansi"):
             if risk_label == "Low / Rendah":
@@ -350,14 +326,15 @@ Tingkat risiko kebakaran sangat tinggi. Intensitas api pada kategori sangat ting
         }
         marker_color = color_map.get(risk_label, "gray")
 
+        # Menggunakan float() untuk mencegah SyntaxError dari pandas series
         popup_text = folium.Popup(f"""
             <div style='width: 230px; font-size: 13px; line-height: 1.5;'>
             <b>Prediksi:</b> {risk_label}<br>
-            <b>Suhu:</b> {last_num[fitur[0]]:.1f} °C<br>
-            <b>Kelembapan:</b> {last_num[fitur[1]]:.1f} %<br>
-            <b>Curah Hujan:</b> {last_num[fitur[2]]:.1f} mm<br>
-            <b>Kecepatan Angin:</b> {last_num[fitur[3]]:.1f} m/s<br>
-            <b>Kelembaban Tanah:</b> {last_num[fitur[4]]:.1f} %<br>
+            <b>Suhu:</b> {float(last_num[fitur[0]]):.1f} °C<br>
+            <b>Kelembapan:</b> {float(last_num[fitur[1]]):.1f} %<br>
+            <b>Curah Hujan:</b> {float(last_num[fitur[2]]):.1f} mm<br>
+            <b>Kecepatan Angin:</b> {float(last_num[fitur[3]]):.1f} m/s<br>
+            <b>Kelembaban Tanah:</b> {float(last_num[fitur[4]]):.1f} %<br>
             <b>Waktu:</b> {last_row['Waktu']}
             </div>
         """, max_width=250)
