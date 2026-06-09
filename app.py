@@ -245,16 +245,18 @@ def dashboard_realtime():
             st.markdown("<span style='font-size:14px; color:gray;'>Grafik di bawah menunjukkan seberapa besar setiap parameter sensor berkontribusi terhadap prediksi saat ini.</span>", unsafe_allow_html=True)
             
             try:
-                # 1. Konversi ke DataFrame agar nama fitur otomatis muncul dengan rapi di grafik
+                # 1. Data yang masuk ke kalkulasi model TETAP data yang sudah di-scale
                 data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
-                
-                # 2. Gunakan shap.sample untuk mengambil 50 baris history sebagai background. 
-                # Ini sangat penting agar komputasi XAI tidak memberatkan Streamlit yang me-refresh tiap 7 detik.
                 background_data = pd.DataFrame(shap.sample(scaled_all, 50), columns=fitur)
                 
-                # 3. PERBAIKAN: Gunakan 'model.predict' (sebagai callable), bukan sekadar 'model'
+                # 2. Kalkulasi SHAP values berdasarkan data scaled
                 explainer = shap.Explainer(model.predict, background_data) 
                 shap_values = explainer(data_realtime_scaled)
+                
+                # 3. PERBAIKAN: Timpa label nilai pada grafik dengan data asli (raw data)
+                # Ambil baris terakhir dari clean_df (data sebelum di-scale) dan jadikan array
+                raw_values = clean_df.iloc[-1].values 
+                shap_values[0].data = raw_values
                 
                 # 4. Buat figure matplotlib untuk Waterfall Plot
                 fig, ax = plt.subplots(figsize=(6, 4))
@@ -262,7 +264,7 @@ def dashboard_realtime():
                 
                 # Tampilkan di Streamlit
                 st.pyplot(fig)
-                plt.clf() # Bersihkan figure agar tidak bertumpuk
+                plt.clf() # Bersihkan figure
                 
             except Exception as e:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
