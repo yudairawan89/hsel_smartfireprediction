@@ -238,7 +238,7 @@ def dashboard_realtime():
             unsafe_allow_html=True
         )
 
- # =================================================================
+        # =================================================================
         # XAI SHAP IMPLEMENTATION
         # =================================================================
         with st.expander("📊 Analisis Keputusan Model (XAI)"):
@@ -260,29 +260,46 @@ def dashboard_realtime():
                 # 4. Biarkan SHAP menggambar grafiknya terlebih dahulu
                 shap.plots.waterfall(shap_values[0], show=False)
                 
-                # 5. PERBAIKAN FINAL: Paksa perbesar ukuran font secara manual
+                # 5. PERBAIKAN: Menambahkan Persentase ke dalam Teks Balok
                 fig = plt.gcf()
-                fig.set_size_inches(10, 6) # Paksa kanvas lebih lebar dan tinggi (10x6)
+                fig.set_size_inches(10, 6)
                 ax = plt.gca()
                 
-                # Perbesar font untuk sumbu (nama fitur di kiri dan angka probabilitas di bawah)
+                # Perbesar ukuran font sumbu
                 ax.tick_params(axis='both', which='major', labelsize=14) 
                 if ax.xaxis.label:
                     ax.xaxis.label.set_size(14)
                 
-                # Perbesar font untuk semua teks/angka di dalam balok merah dan biru
-                for text in ax.texts:
-                    text.set_fontsize(14)
+                # Hitung total absolut kontribusi (sebagai 100% basis perhitungan)
+                total_abs_shap = sum(abs(v) for v in shap_values[0].values)
                 
-                # Tampilkan di Streamlit dengan DPI=300 agar gambar sangat tajam dan tidak pecah
+                # Loop untuk setiap elemen teks di dalam grafik
+                for text in ax.texts:
+                    text.set_fontsize(14) # Set ukuran font
+                    
+                    text_str = text.get_text().strip()
+                    # SHAP sering menggunakan karakter minus unicode '−' (U+2212)
+                    # Kita ganti ke '-' keyboard standar agar Python bisa membacanya sebagai angka (float)
+                    clean_str = text_str.replace('−', '-')
+                    
+                    try:
+                        # Jika teks bisa diubah menjadi angka (berarti itu adalah teks di dalam balok)
+                        val = float(clean_str)
+                        if total_abs_shap > 0:
+                            # Hitung persentase kontribusi
+                            pct = (abs(val) / total_abs_shap) * 100
+                            # Update teks dengan tambahan persentase
+                            text.set_text(f"{text_str} ({pct:.1f}%)")
+                    except ValueError:
+                        # Jika error (teks bukan angka tunggal, misal label "f(x) = ..."), biarkan saja
+                        pass
+                
+                # Tampilkan di Streamlit dengan DPI tinggi agar tajam
                 st.pyplot(fig, bbox_inches='tight', dpi=300) 
-                plt.clf() # Bersihkan figure
+                plt.clf()
                 
             except Exception as e:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
-
-
-        
 
         with st.expander("Tindak Lanjut Instansi"):
             if risk_label == "Low / Rendah":
