@@ -11,3 +11,5 @@ streamlit-folium
 imbalanced-learn
 scipy
 Sastrawi
+shap
+matplotlib
