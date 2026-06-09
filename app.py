@@ -253,20 +253,23 @@ def dashboard_realtime():
                 explainer = shap.Explainer(model.predict, background_data) 
                 shap_values = explainer(data_realtime_scaled)
                 
-                # 3. PERBAIKAN FINAL: Timpa data pada objek UTAMA (bukan slice [0]) 
-                # menggunakan array 2D dari clean_df baris terakhir.
+                # 3. Timpa data pada objek UTAMA menggunakan array 2D dari clean_df baris terakhir.
                 data_realtime_raw = clean_df.iloc[-1:].values 
                 shap_values.data = data_realtime_raw
                 
-                # 4. Buat figure matplotlib untuk Waterfall Plot
-                fig, ax = plt.subplots(figsize=(6, 4))
+                # 4. Buat figure matplotlib untuk Waterfall Plot dengan ukuran font dan canvas yang disesuaikan
+                plt.rcParams.update({'font.size': 14}) # Perbesar font teks
+                fig, ax = plt.subplots(figsize=(8, 5)) # Perlebar ukuran figure (kanvas)
                 
                 # Sekarang shap_values[0] akan mengambil data yang sudah di-overwrite
                 shap.plots.waterfall(shap_values[0], show=False)
                 
-                # Tampilkan di Streamlit
-                st.pyplot(fig)
-                plt.clf() # Bersihkan figure
+                # Tampilkan di Streamlit dengan tight layout agar teks tidak terpotong
+                st.pyplot(fig, bbox_inches='tight') 
+                
+                # Bersihkan figure dan kembalikan font ke normal agar tidak memengaruhi komponen lain
+                plt.clf() 
+                plt.rcParams.update({'font.size': 10})
                 
             except Exception as e:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
