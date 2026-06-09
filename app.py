@@ -238,30 +238,37 @@ def dashboard_realtime():
             unsafe_allow_html=True
         )
 
-        # =================================================================
+# =================================================================
         # XAI SHAP IMPLEMENTATION
         # =================================================================
         with st.expander("📊 Analisis Keputusan Model (XAI)"):
             st.markdown("<span style='font-size:14px; color:gray;'>Grafik di bawah menunjukkan seberapa besar setiap parameter sensor berkontribusi terhadap prediksi saat ini.</span>", unsafe_allow_html=True)
             
             try:
-                # Menggunakan baris data terakhir yang sudah di-scale
-                data_realtime_scaled = scaled_all[-1:] 
+                # 1. Konversi ke DataFrame agar nama fitur otomatis muncul dengan rapi di grafik
+                data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
                 
-                # Inisialisasi Explainer
-                explainer = shap.Explainer(model, scaled_all) 
+                # 2. Gunakan shap.sample untuk mengambil 50 baris history sebagai background. 
+                # Ini sangat penting agar komputasi XAI tidak memberatkan Streamlit yang me-refresh tiap 7 detik.
+                background_data = pd.DataFrame(shap.sample(scaled_all, 50), columns=fitur)
+                
+                # 3. PERBAIKAN: Gunakan 'model.predict' (sebagai callable), bukan sekadar 'model'
+                explainer = shap.Explainer(model.predict, background_data) 
                 shap_values = explainer(data_realtime_scaled)
                 
-                # Buat figure matplotlib untuk Waterfall Plot
-                fig, ax = plt.subplots(figsize=(4, 3))
+                # 4. Buat figure matplotlib untuk Waterfall Plot
+                fig, ax = plt.subplots(figsize=(6, 4))
                 shap.plots.waterfall(shap_values[0], show=False)
                 
                 # Tampilkan di Streamlit
                 st.pyplot(fig)
-                plt.clf() # Bersihkan figure
+                plt.clf() # Bersihkan figure agar tidak bertumpuk
                 
             except Exception as e:
-                st.info(f"Visualisasi XAI belum dapat diproses: {e}")
+                st.error(f"Visualisasi XAI belum dapat diproses: {e}")
+
+
+        
 
         with st.expander("Tindak Lanjut Instansi"):
             if risk_label == "Low / Rendah":
