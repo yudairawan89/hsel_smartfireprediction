@@ -70,82 +70,6 @@ risk_styles = {
     "Very High / Sangat Tinggi": ("white", "red")
 }
 
-# === TAMBAHAN FUNGSI NARASI SHAP ===
-def generate_shap_narrative(shap_values, risk_label):
-    feature_map = {
-        'Tavg: Temperatur rata-rata (°C)': 'Suhu Udara',
-        'RH_avg: Kelembapan rata-rata (%)': 'Kelembapan Udara',
-        'RR: Curah hujan (mm)': 'Curah Hujan',
-        'ff_avg: Kecepatan angin rata-rata (m/s)': 'Kecepatan Angin',
-        'Kelembaban Permukaan Tanah': 'Kelembaban Permukaan Tanah'
-    }
-
-    # Ambil kontribusi SHAP
-    contributions = []
-    total_abs_shap = sum(abs(v) for v in shap_values.values)
-    
-    # Proteksi: Pastikan feature_names ditarik dengan aman
-    feat_names = shap_values.feature_names if hasattr(shap_values, 'feature_names') and shap_values.feature_names is not None else list(feature_map.keys())
-
-    for feature, value in zip(feat_names, shap_values.values):
-        pct = (abs(value) / total_abs_shap) * 100 if total_abs_shap > 0 else 0
-        contributions.append({
-            "feature": feature_map.get(feature, feature),
-            "shap": value,
-            "pct": pct
-        })
-
-    # Urutkan berdasarkan kontribusi persentase terbesar
-    contributions = sorted(
-        contributions,
-        key=lambda x: abs(x["shap"]),
-        reverse=True
-    )
-
-    # Narasi utama berdasarkan label risiko
-    if risk_label == "Low / Rendah":
-        narasi = (
-            "Sistem memprediksi tingkat risiko kebakaran berada pada kategori **Low (Rendah)**. "
-            "Secara umum kondisi lingkungan masih relatif aman dan belum menunjukkan indikasi kuat terjadinya kebakaran.\n\n"
-        )
-    elif risk_label == "Moderate / Sedang":
-        narasi = (
-            "Sistem memprediksi tingkat risiko kebakaran berada pada kategori **Moderate (Sedang)**. "
-            "Kondisi lingkungan mulai menunjukkan indikasi peningkatan risiko sehingga diperlukan pemantauan yang lebih intensif.\n\n"
-        )
-    elif risk_label == "High / Tinggi":
-        narasi = (
-            "Sistem memprediksi tingkat risiko kebakaran berada pada kategori **High (Tinggi)**. "
-            "Kombinasi parameter lingkungan saat ini menunjukkan kondisi yang mendukung terjadinya kebakaran dan memerlukan kewaspadaan yang tinggi.\n\n"
-        )
-    else:
-        narasi = (
-            "Sistem memprediksi tingkat risiko kebakaran berada pada kategori **Very High (Sangat Tinggi)**. "
-            "Kondisi ini menunjukkan bahwa lingkungan sangat rentan terhadap munculnya titik api dan penyebaran kebakaran "
-            "sehingga diperlukan tindakan mitigasi dan pemantauan secara intensif.\n\n"
-        )
-
-    # Tambahkan penjelasan kesimpulan dinamis untuk SEMUA fitur
-    narasi += "**Rincian Kesimpulan Pengaruh Setiap Parameter:**\n"
-    for i, cont in enumerate(contributions):
-        # Penarikan Kesimpulan Arah Pengaruh (Berdasarkan nilai positif/negatif SHAP)
-        if cont['shap'] > 0:
-            arah = "mendorong dan memperkuat keyakinan model"
-        else:
-            arah = "cenderung menahan/berlawanan dengan hasil prediksi (namun terkalahkan oleh faktor lain)"
-            
-        # Penarikan Kesimpulan Besaran Pengaruh (Berdasarkan Persentase)
-        if cont['pct'] >= 25:
-            tingkat = "sangat dominan"
-        elif cont['pct'] >= 10:
-            tingkat = "cukup signifikan"
-        else:
-            tingkat = "kecil"
-
-        narasi += f"{i+1}. **{cont['feature']}** ({cont['pct']:.1f}%): Memberikan pengaruh yang **{tingkat}** serta **{arah}** terhadap keputusan akhir tingkat risiko saat ini.\n"
-
-    return narasi
-
 # === LOAD MODEL, SCALER, DAN SASTRAWI ===
 @st.cache_resource
 def load_model():
@@ -364,19 +288,6 @@ def dashboard_realtime():
                 # Bersihkan figure dan kembalikan font ke normal
                 plt.clf()
                 plt.rcParams.update({'font.size': 10})
-                
-                # --- TAMBAHAN NARASI SHAP DINAMIS DENGAN WARNA SESUAI KONDISI ---
-                narasi = generate_shap_narrative(shap_values[0], risk_label)
-                
-                if risk_label == "Low / Rendah":
-                    st.info(narasi)      # Background Biru
-                elif risk_label == "Moderate / Sedang":
-                    st.success(narasi)   # Background Hijau
-                elif risk_label == "High / Tinggi":
-                    st.warning(narasi)   # Background Kuning/Oranye
-                else:
-                    st.error(narasi)     # Background Merah
-                # ----------------------------------------------------------------
                 
             except Exception as e:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
