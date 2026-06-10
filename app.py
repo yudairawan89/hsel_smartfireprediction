@@ -73,11 +73,11 @@ risk_styles = {
 # === TAMBAHAN FUNGSI NARASI SHAP ===
 def generate_shap_narrative(shap_values, risk_label):
     feature_map = {
-        'Tavg: Temperatur rata-rata (°C)': 'suhu udara',
-        'RH_avg: Kelembapan rata-rata (%)': 'kelembapan udara',
-        'RR: Curah hujan (mm)': 'curah hujan',
-        'ff_avg: Kecepatan angin rata-rata (m/s)': 'kecepatan angin',
-        'Kelembaban Permukaan Tanah': 'kelembaban permukaan tanah'
+        'Tavg: Temperatur rata-rata (°C)': 'Suhu Udara',
+        'RH_avg: Kelembapan rata-rata (%)': 'Kelembapan Udara',
+        'RR: Curah hujan (mm)': 'Curah Hujan',
+        'ff_avg: Kecepatan angin rata-rata (m/s)': 'Kecepatan Angin',
+        'Kelembaban Permukaan Tanah': 'Kelembaban Permukaan Tanah'
     }
 
     # Ambil kontribusi SHAP
@@ -102,49 +102,33 @@ def generate_shap_narrative(shap_values, risk_label):
         reverse=True
     )
 
-    top1 = contributions[0] if len(contributions) > 0 else None
-    top2 = contributions[1] if len(contributions) > 1 else None
-    top3 = contributions[2] if len(contributions) > 2 else None
-
+    # Narasi utama berdasarkan label risiko
     if risk_label == "Low / Rendah":
         narasi = (
-            f"Sistem memprediksi tingkat risiko kebakaran berada pada kategori "
-            f"**Low (Rendah)**. Faktor yang paling memengaruhi keputusan model "
-            f"adalah **{top1['feature']}** dengan kontribusi sebesar "
-            f"**{top1['pct']:.1f}%**. Secara umum kondisi lingkungan masih "
-            f"relatif aman dan belum menunjukkan indikasi kuat terjadinya "
-            f"kebakaran."
+            "Sistem memprediksi tingkat risiko kebakaran berada pada kategori **Low (Rendah)**. "
+            "Secara umum kondisi lingkungan masih relatif aman dan belum menunjukkan indikasi kuat terjadinya kebakaran.\n\n"
         )
     elif risk_label == "Moderate / Sedang":
         narasi = (
-            f"Sistem memprediksi tingkat risiko kebakaran berada pada kategori "
-            f"**Moderate (Sedang)**. Faktor dominan yang memengaruhi keputusan "
-            f"model adalah **{top1['feature']}** dengan kontribusi sebesar "
-            f"**{top1['pct']:.1f}%**. Kondisi lingkungan mulai menunjukkan "
-            f"indikasi peningkatan risiko sehingga diperlukan pemantauan yang "
-            f"lebih intensif."
+            "Sistem memprediksi tingkat risiko kebakaran berada pada kategori **Moderate (Sedang)**. "
+            "Kondisi lingkungan mulai menunjukkan indikasi peningkatan risiko sehingga diperlukan pemantauan yang lebih intensif.\n\n"
         )
     elif risk_label == "High / Tinggi":
         narasi = (
-            f"Sistem memprediksi tingkat risiko kebakaran berada pada kategori "
-            f"**High (Tinggi)**. Faktor utama yang memengaruhi keputusan model "
-            f"adalah **{top1['feature']} ({top1['pct']:.1f}%)**, diikuti oleh "
-            f"**{top2['feature']} ({top2['pct']:.1f}%)** dan "
-            f"**{top3['feature']} ({top3['pct']:.1f}%)**. Kombinasi parameter "
-            f"tersebut menunjukkan kondisi yang mendukung terjadinya kebakaran "
-            f"dan memerlukan kewaspadaan yang tinggi."
+            "Sistem memprediksi tingkat risiko kebakaran berada pada kategori **High (Tinggi)**. "
+            "Kombinasi parameter lingkungan saat ini menunjukkan kondisi yang mendukung terjadinya kebakaran dan memerlukan kewaspadaan yang tinggi.\n\n"
         )
     else:
         narasi = (
-            f"Sistem memprediksi tingkat risiko kebakaran berada pada kategori "
-            f"**Very High (Sangat Tinggi)**. Faktor yang paling dominan dalam "
-            f"keputusan model adalah **{top1['feature']} ({top1['pct']:.1f}%)**, "
-            f"diikuti oleh **{top2['feature']} ({top2['pct']:.1f}%)** dan "
-            f"**{top3['feature']} ({top3['pct']:.1f}%)**. Kondisi ini menunjukkan "
-            f"bahwa lingkungan sangat rentan terhadap munculnya titik api dan "
-            f"penyebaran kebakaran sehingga diperlukan tindakan mitigasi dan "
-            f"pemantauan secara intensif."
+            "Sistem memprediksi tingkat risiko kebakaran berada pada kategori **Very High (Sangat Tinggi)**. "
+            "Kondisi ini menunjukkan bahwa lingkungan sangat rentan terhadap munculnya titik api dan penyebaran kebakaran "
+            "sehingga diperlukan tindakan mitigasi dan pemantauan secara intensif.\n\n"
         )
+
+    # Tambahkan penjelasan detail untuk SEMUA fitur secara dinamis
+    narasi += "**Rincian Pengaruh Setiap Parameter terhadap Keputusan Model:**\n"
+    for i, cont in enumerate(contributions):
+        narasi += f"{i+1}. **{cont['feature']}**: Berkontribusi memengaruhi keputusan model sebesar **{cont['pct']:.1f}%**.\n"
 
     return narasi
 
