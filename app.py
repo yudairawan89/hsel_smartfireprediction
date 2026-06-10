@@ -70,6 +70,84 @@ risk_styles = {
     "Very High / Sangat Tinggi": ("white", "red")
 }
 
+# === TAMBAHAN FUNGSI NARASI SHAP ===
+def generate_shap_narrative(shap_values, risk_label):
+    feature_map = {
+        'Tavg: Temperatur rata-rata (°C)': 'suhu udara',
+        'RH_avg: Kelembapan rata-rata (%)': 'kelembapan udara',
+        'RR: Curah hujan (mm)': 'curah hujan',
+        'ff_avg: Kecepatan angin rata-rata (m/s)': 'kecepatan angin',
+        'Kelembaban Permukaan Tanah': 'kelembaban permukaan tanah'
+    }
+
+    # Ambil kontribusi SHAP
+    contributions = []
+    total_abs_shap = sum(abs(v) for v in shap_values.values)
+    
+    # Proteksi: Pastikan feature_names ditarik dengan aman
+    feat_names = shap_values.feature_names if hasattr(shap_values, 'feature_names') and shap_values.feature_names is not None else list(feature_map.keys())
+
+    for feature, value in zip(feat_names, shap_values.values):
+        pct = (abs(value) / total_abs_shap) * 100 if total_abs_shap > 0 else 0
+        contributions.append({
+            "feature": feature_map.get(feature, feature),
+            "shap": value,
+            "pct": pct
+        })
+
+    # Urutkan berdasarkan kontribusi terbesar
+    contributions = sorted(
+        contributions,
+        key=lambda x: abs(x["shap"]),
+        reverse=True
+    )
+
+    top1 = contributions[0] if len(contributions) > 0 else None
+    top2 = contributions[1] if len(contributions) > 1 else None
+    top3 = contributions[2] if len(contributions) > 2 else None
+
+    if risk_label == "Low / Rendah":
+        narasi = (
+            f"Sistem memprediksi tingkat risiko kebakaran berada pada kategori "
+            f"**Low (Rendah)**. Faktor yang paling memengaruhi keputusan model "
+            f"adalah **{top1['feature']}** dengan kontribusi sebesar "
+            f"**{top1['pct']:.1f}%**. Secara umum kondisi lingkungan masih "
+            f"relatif aman dan belum menunjukkan indikasi kuat terjadinya "
+            f"kebakaran."
+        )
+    elif risk_label == "Moderate / Sedang":
+        narasi = (
+            f"Sistem memprediksi tingkat risiko kebakaran berada pada kategori "
+            f"**Moderate (Sedang)**. Faktor dominan yang memengaruhi keputusan "
+            f"model adalah **{top1['feature']}** dengan kontribusi sebesar "
+            f"**{top1['pct']:.1f}%**. Kondisi lingkungan mulai menunjukkan "
+            f"indikasi peningkatan risiko sehingga diperlukan pemantauan yang "
+            f"lebih intensif."
+        )
+    elif risk_label == "High / Tinggi":
+        narasi = (
+            f"Sistem memprediksi tingkat risiko kebakaran berada pada kategori "
+            f"**High (Tinggi)**. Faktor utama yang memengaruhi keputusan model "
+            f"adalah **{top1['feature']} ({top1['pct']:.1f}%)**, diikuti oleh "
+            f"**{top2['feature']} ({top2['pct']:.1f}%)** dan "
+            f"**{top3['feature']} ({top3['pct']:.1f}%)**. Kombinasi parameter "
+            f"tersebut menunjukkan kondisi yang mendukung terjadinya kebakaran "
+            f"dan memerlukan kewaspadaan yang tinggi."
+        )
+    else:
+        narasi = (
+            f"Sistem memprediksi tingkat risiko kebakaran berada pada kategori "
+            f"**Very High (Sangat Tinggi)**. Faktor yang paling dominan dalam "
+            f"keputusan model adalah **{top1['feature']} ({top1['pct']:.1f}%)**, "
+            f"diikuti oleh **{top2['feature']} ({top2['pct']:.1f}%)** dan "
+            f"**{top3['feature']} ({top3['pct']:.1f}%)**. Kondisi ini menunjukkan "
+            f"bahwa lingkungan sangat rentan terhadap munculnya titik api dan "
+            f"penyebaran kebakaran sehingga diperlukan tindakan mitigasi dan "
+            f"pemantauan secara intensif."
+        )
+
+    return narasi
+
 # === LOAD MODEL, SCALER, DAN SASTRAWI ===
 @st.cache_resource
 def load_model():
@@ -288,6 +366,11 @@ def dashboard_realtime():
                 # Bersihkan figure dan kembalikan font ke normal
                 plt.clf()
                 plt.rcParams.update({'font.size': 10})
+                
+                # --- TAMBAHAN NARASI SHAP DARI FUNGSI BARU ---
+                narasi = generate_shap_narrative(shap_values[0], risk_label)
+                st.info(narasi)
+                # ---------------------------------------------
                 
             except Exception as e:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
