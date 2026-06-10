@@ -289,118 +289,96 @@ def dashboard_realtime():
                 plt.clf()
                 plt.rcParams.update({'font.size': 10})
                 
+                # === INTEGRASI ANALISIS TEKS XAI DINAMIS ===
+                
+                # Hitung kontribusi masing-masing fitur
+                kontribusi = []
+                for i, val in enumerate(shap_values[0].values):
+                    pct_val = (abs(val) / total_abs_shap * 100) if total_abs_shap > 0 else 0
+                    kontribusi.append({
+                        'fitur': fitur[i],
+                        'shap_val': val,
+                        'pct': pct_val
+                    })
+                # Urutkan berdasarkan kontribusi persentase terbesar (absolute)
+                kontribusi = sorted(kontribusi, key=lambda x: x['pct'], reverse=True)
+
+                st.markdown("<h4 style='margin-top: 25px;'>Analisis Detail Keputusan Model (XAI)</h4>", unsafe_allow_html=True)
+
+                # 1. Paragraf Pembuka Dinamis Berdasarkan 4 Tingkat Risiko
+                if risk_label == "Low / Rendah":
+                    st.success("Kondisi lingkungan saat ini terpantau **sangat aman dan stabil**. Berdasarkan analisis *Explainable AI* (SHAP), berikut adalah dominasi faktor-faktor alam yang sukses meredam potensi kebakaran:")
+                elif risk_label == "Moderate / Sedang":
+                    st.info("Kondisi lingkungan saat ini terpantau **cukup stabil namun memerlukan pemantauan berkala**. Berikut adalah rincian faktor yang memengaruhi keseimbangan risiko saat ini:")
+                elif risk_label == "High / Tinggi":
+                    st.warning("Kondisi lingkungan saat ini terpantau **kritis**. Berdasarkan analisis *Explainable AI* (SHAP), terdapat ancaman bahaya yang dipicu oleh memburuknya faktor-faktor berikut:")
+                elif risk_label == "Very High / Sangat Tinggi":
+                    st.error("Kondisi lingkungan saat ini berada pada fase **SANGAT EKSTREM**. Faktor-faktor alam berikut secara masif mendorong eskalasi kebakaran lahan ke tingkat bahaya tertinggi:")
+
+                # Mapping warna icon berdasarkan urutan kontribusi (1 terpenting s.d. ke-5)
+                icons = ["🔴", "🟠", "🟡", "🟢", "⚪"]
+
+                # 2. Perulangan Rincian Pengaruh Fitur
+                for i, factor in enumerate(kontribusi):
+                    icon = icons[i] if i < len(icons) else "⚪"
+                    nama_fitur = str(factor['fitur']).lower()
+                    persen = factor['pct']
+                    arah = factor['shap_val']
+                    
+                    st.markdown(f"**{icon} {factor['fitur'].title()} ({persen:.1f}%)**")
+                    
+                    if persen < 5.0:
+                        if arah > 0:
+                            st.write("- Memberikan dorongan minor terhadap potensi risiko. Pengaruhnya saat ini tertutupi oleh faktor dominan lainnya.")
+                        else:
+                            st.write("- Memiliki efek peredaman yang sangat kecil terhadap prediksi saat ini. Kondisinya belum cukup signifikan untuk memengaruhi status lingkungan secara keseluruhan.")
+                            
+                    else:
+                        # --- LOGIKA UNTUK KELEMBABAN TANAH ---
+                        if "tanah" in nama_fitur:
+                            if arah > 0:
+                                st.write("- **Meningkatkan Risiko:** Merupakan faktor pendorong utama. Kelembaban tanah yang rendah menunjukkan kondisi lahan yang teramat kering sehingga materi vegetasi sangat rentan terbakar.")
+                            else:
+                                st.write("- **Meredam Risiko:** Kelembaban tanah terdeteksi cukup tinggi (basah/lembab). Kondisi ini bertindak sebagai tameng alami yang sangat baik untuk menghambat kemunculan maupun penyebaran titik api.")
+                                
+                        # --- LOGIKA UNTUK KELEMBAPAN UDARA (RH) ---
+                        elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur:
+                            if arah > 0:
+                                st.write("- **Meningkatkan Risiko:** Berkontribusi memperburuk kondisi lahan. Udara yang kering mempercepat proses pengeringan bahan bakar alami seperti semak belukar dan dedaunan mati.")
+                            else:
+                                st.write("- **Meredam Risiko:** Tingkat kelembapan udara yang tinggi membantu menjaga kebasahan partikel di udara dan menekan kemungkinan material vegetasi untuk terpicu api.")
+                                
+                        # --- LOGIKA UNTUK KECEPATAN ANGIN ---
+                        elif "angin" in nama_fitur or "ff" in nama_fitur:
+                            if arah > 0:
+                                st.write("- **Mempercepat Eskalasi:** Angin berpotensi menjadi katalisator destruktif. Kecepatan angin saat ini berisiko memperluas area kebakaran dengan sangat cepat akibat pasokan oksigen yang masif.")
+                            else:
+                                st.write("- **Kondisi Stabil:** Pergerakan angin yang relatif lambat dan tenang tidak memberikan ancaman berarti terhadap potensi rambatan titik api saat ini.")
+                                
+                        # --- LOGIKA UNTUK TEMPERATUR / SUHU ---
+                        elif "suhu" in nama_fitur or "temperatur" in nama_fitur or "tavg" in nama_fitur:
+                            if arah > 0:
+                                st.write("- **Meningkatkan Risiko:** Suhu lingkungan yang sangat panas memicu penguapan ekstraksi air dari vegetasi secara masif, menciptakan kondisi ideal bagi penyalaan titik api secara spontan.")
+                            else:
+                                st.write("- **Meredam Risiko:** Suhu udara yang tergolong sejuk atau normal membantu menjaga stabilitas termal lingkungan dan meminimalisir risiko penyalaan api secara alami.")
+                                
+                        # --- LOGIKA UNTUK CURAH HUJAN ---
+                        elif "hujan" in nama_fitur or "rr" in nama_fitur:
+                            if arah > 0:
+                                st.write("- **Meningkatkan Risiko:** Ketiadaan curah hujan (kemarau kering) menghilangkan faktor pendingin alami utama, sehingga sangat mendukung kelangsungan siklus kebakaran lahan.")
+                            else:
+                                st.write("- **Meredam Risiko:** Curah hujan yang turun merupakan faktor pendingin krusial yang secara efektif membasahi seluruh permukaan lahan dan mematikan potensi api secara langsung.")
+                                
+                        # --- FALLBACK LOGIC ---
+                        else:
+                            if arah > 0:
+                                st.write("- Secara kalkulasi sistem berkontribusi dalam meningkatkan potensi risiko kebakaran pada area pengamatan.")
+                            else:
+                                st.write("- Secara kalkulasi sistem berkontribusi dalam menstabilkan dan menurunkan potensi risiko kebakaran pada area pengamatan.")
+                
             except Exception as e:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
 
-st.markdown("<h4 style='margin-top: 25px;'>Analisis Detail Keputusan Model (XAI)</h4>", unsafe_allow_html=True)
-
-# 1. Paragraf Pembuka Dinamis Berdasarkan 4 Tingkat Risiko
-if risk_label == "Low / Rendah":
-    st.success("Kondisi lingkungan saat ini terpantau **sangat aman dan stabil**. Berdasarkan analisis *Explainable AI* (SHAP), berikut adalah dominasi faktor-faktor alam yang sukses meredam potensi kebakaran:")
-elif risk_label == "Moderate / Sedang":
-    st.info("Kondisi lingkungan saat ini terpantau **cukup stabil namun memerlukan pemantauan berkala**. Berikut adalah rincian faktor yang memengaruhi keseimbangan risiko saat ini:")
-elif risk_label == "High / Tinggi":
-    st.warning("Kondisi lingkungan saat ini terpantau **kritis**. Berdasarkan analisis *Explainable AI* (SHAP), terdapat ancaman bahaya yang dipicu oleh memburuknya faktor-faktor berikut:")
-elif risk_label == "Very High / Sangat Tinggi":
-    st.error("Kondisi lingkungan saat ini berada pada fase **SANGAT EKSTREM**. Faktor-faktor alam berikut secara masif mendorong eskalasi kebakaran lahan ke tingkat bahaya tertinggi:")
-
-# Mapping warna icon berdasarkan urutan kontribusi (1 terpenting s.d. ke-5)
-icons = ["🔴", "🟠", "🟡", "🟢", "⚪"]
-
-# 2. Perulangan Rincian Pengaruh Fitur
-for i, factor in enumerate(kontribusi):
-    icon = icons[i] if i < len(icons) else "⚪"
-    nama_fitur = str(factor['fitur']).lower()
-    persen = factor['pct']
-    arah = factor['shap_val']
-    
-    st.markdown(f"**{icon} {factor['fitur'].title()} ({persen:.1f}%)**")
-    
-    if persen < 5.0:
-        if arah > 0:
-            st.write("- Memberikan dorongan minor terhadap potensi risiko. Pengaruhnya saat ini tertutupi oleh faktor dominan lainnya.")
-        else:
-            st.write("- Memiliki efek peredaman yang sangat kecil terhadap prediksi saat ini. Kondisinya belum cukup signifikan untuk memengaruhi status lingkungan secara keseluruhan.")
-            
-    else:
-        # --- LOGIKA UNTUK KELEMBABAN TANAH ---
-        if "tanah" in nama_fitur:
-            if arah > 0:
-                st.write("- **Meningkatkan Risiko:** Merupakan faktor pendorong utama. Kelembaban tanah yang rendah menunjukkan kondisi lahan yang teramat kering sehingga materi vegetasi sangat rentan terbakar.")
-            else:
-                st.write("- **Meredam Risiko:** Kelembaban tanah terdeteksi cukup tinggi (basah/lembab). Kondisi ini bertindak sebagai tameng alami yang sangat baik untuk menghambat kemunculan maupun penyebaran titik api.")
-                
-        # --- LOGIKA UNTUK KELEMBAPAN UDARA (RH) ---
-        elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur:
-            if arah > 0:
-                st.write("- **Meningkatkan Risiko:** Berkontribusi memperburuk kondisi lahan. Udara yang kering mempercepat proses pengeringan bahan bakar alami seperti semak belukar dan dedaunan mati.")
-            else:
-                st.write("- **Meredam Risiko:** Tingkat kelembapan udara yang tinggi membantu menjaga kebasahan partikel di udara dan menekan kemungkinan material vegetasi untuk terpicu api.")
-                
-        # --- LOGIKA UNTUK KECEPATAN ANGIN ---
-        elif "angin" in nama_fitur or "ff" in nama_fitur:
-            if arah > 0:
-                st.write("- **Mempercepat Eskalasi:** Angin berpotensi menjadi katalisator destruktif. Kecepatan angin saat ini berisiko memperluas area kebakaran dengan sangat cepat akibat pasokan oksigen yang masif.")
-            else:
-                st.write("- **Kondisi Stabil:** Pergerakan angin yang relatif lambat dan tenang tidak memberikan ancaman berarti terhadap potensi rambatan titik api saat ini.")
-                
-        # --- LOGIKA UNTUK TEMPERATUR / SUHU ---
-        elif "suhu" in nama_fitur or "temperatur" in nama_fitur or "tavg" in nama_fitur:
-            if arah > 0:
-                st.write("- **Meningkatkan Risiko:** Suhu lingkungan yang sangat panas memicu penguapan ekstraksi air dari vegetasi secara masif, menciptakan kondisi ideal bagi penyalaan titik api secara spontan.")
-            else:
-                st.write("- **Meredam Risiko:** Suhu udara yang tergolong sejuk atau normal membantu menjaga stabilitas termal lingkungan dan meminimalisir risiko penyalaan api secara alami.")
-                
-        # --- LOGIKA UNTUK CURAH HUJAN ---
-        elif "hujan" in nama_fitur or "rr" in nama_fitur:
-            if arah > 0:
-                st.write("- **Meningkatkan Risiko:** Ketiadaan curah hujan (kemarau kering) menghilangkan faktor pendingin alami utama, sehingga sangat mendukung kelangsungan siklus kebakaran lahan.")
-            else:
-                st.write("- **Meredam Risiko:** Curah hujan yang turun merupakan faktor pendingin krusial yang secara efektif membasahi seluruh permukaan lahan dan mematikan potensi api secara langsung.")
-                
-        # --- FALLBACK LOGIC ---
-        else:
-            if arah > 0:
-                st.write("- Secara kalkulasi sistem berkontribusi dalam meningkatkan potensi risiko kebakaran pada area pengamatan.")
-            else:
-                st.write("- Secara kalkulasi sistem berkontribusi dalam menstabilkan dan menurunkan potensi risiko kebakaran pada area pengamatan.")
-
-# =====================================================================
-# 3. KESIMPULAN OTOMATIS BERDASARKAN 4 TINGKAT RISIKO
-# =====================================================================
-st.markdown("---")
-if len(kontribusi) > 0:
-    top_faktor = kontribusi[0]
-    nama_top_fitur = top_faktor['fitur'].title()
-    pct_top = top_faktor['pct']
-    
-    if risk_label == "Low / Rendah":
-        st.success(
-            f"**Kesimpulan Eksekutif:** Situasi saat ini sangat aman. Parameter **{nama_top_fitur}** "
-            f"berperan sebagai penahan utama yang menjaga stabilitas lingkungan dengan rasio dominasi sebesar **{pct_top:.1f}%**. "
-            f"Selama parameter ini tidak berubah drastis, potensi kemunculan titik api dapat ditekan secara maksimal."
-        )
-    elif risk_label == "Moderate / Sedang":
-        st.info(
-            f"**Kesimpulan Eksekutif:** Situasi secara umum terkendali. Parameter **{nama_top_fitur}** "
-            f"memberikan pengaruh paling dominan terhadap fluktuasi risiko saat ini dengan kontribusi **{pct_top:.1f}%**. "
-            f"Disarankan untuk melakukan pemantauan berkala guna memastikan tidak ada eskalasi pada metrik ini."
-        )
-    elif risk_label == "High / Tinggi":
-        st.warning(
-            f"**Kesimpulan Eksekutif:** Peringatan Dini! Memburuknya parameter **{nama_top_fitur}** "
-            f"adalah penyumbang risiko tertinggi (**{pct_top:.1f}%**) yang menggeser lingkungan ke status kritis. "
-            f"Segera prioritaskan patroli darat dan tindakan mitigasi spesifik pada area-area rawan yang terdampak."
-        )
-    elif risk_label == "Very High / Sangat Tinggi":
-        st.error(
-            f"**Kesimpulan Eksekutif:** SIAGA DARURAT! Risiko telah mencapai titik puncak. Faktor ekstrem pada **{nama_top_fitur}** "
-            f"merupakan katalis utama pembentuk bahaya dengan kontribusi mutlak sebesar **{pct_top:.1f}%**. "
-            f"Langkah penanggulangan darurat tingkat instansi, termasuk kesiapan armada pemadam dan opsi Operasi Modifikasi Cuaca (OMC), harus disiagakan!"
-        )
-
-
-        
         with st.expander("Tindak Lanjut Instansi"):
             if risk_label == "Low / Rendah":
                 st.markdown("""
