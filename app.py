@@ -95,7 +95,7 @@ def generate_shap_narrative(shap_values, risk_label):
             "pct": pct
         })
 
-    # Urutkan berdasarkan kontribusi terbesar
+    # Urutkan berdasarkan kontribusi persentase terbesar
     contributions = sorted(
         contributions,
         key=lambda x: abs(x["shap"]),
@@ -125,10 +125,24 @@ def generate_shap_narrative(shap_values, risk_label):
             "sehingga diperlukan tindakan mitigasi dan pemantauan secara intensif.\n\n"
         )
 
-    # Tambahkan penjelasan detail untuk SEMUA fitur secara dinamis
-    narasi += "**Rincian Pengaruh Setiap Parameter terhadap Keputusan Model:**\n"
+    # Tambahkan penjelasan kesimpulan dinamis untuk SEMUA fitur
+    narasi += "**Rincian Kesimpulan Pengaruh Setiap Parameter:**\n"
     for i, cont in enumerate(contributions):
-        narasi += f"{i+1}. **{cont['feature']}**: Berkontribusi memengaruhi keputusan model sebesar **{cont['pct']:.1f}%**.\n"
+        # Penarikan Kesimpulan Arah Pengaruh (Berdasarkan nilai positif/negatif SHAP)
+        if cont['shap'] > 0:
+            arah = "mendorong dan memperkuat keyakinan model"
+        else:
+            arah = "cenderung menahan/berlawanan dengan hasil prediksi (namun terkalahkan oleh faktor lain)"
+            
+        # Penarikan Kesimpulan Besaran Pengaruh (Berdasarkan Persentase)
+        if cont['pct'] >= 25:
+            tingkat = "sangat dominan"
+        elif cont['pct'] >= 10:
+            tingkat = "cukup signifikan"
+        else:
+            tingkat = "kecil"
+
+        narasi += f"{i+1}. **{cont['feature']}** ({cont['pct']:.1f}%): Memberikan pengaruh yang **{tingkat}** serta **{arah}** terhadap keputusan akhir tingkat risiko saat ini.\n"
 
     return narasi
 
@@ -351,10 +365,18 @@ def dashboard_realtime():
                 plt.clf()
                 plt.rcParams.update({'font.size': 10})
                 
-                # --- TAMBAHAN NARASI SHAP DARI FUNGSI BARU ---
+                # --- TAMBAHAN NARASI SHAP DINAMIS DENGAN WARNA SESUAI KONDISI ---
                 narasi = generate_shap_narrative(shap_values[0], risk_label)
-                st.info(narasi)
-                # ---------------------------------------------
+                
+                if risk_label == "Low / Rendah":
+                    st.info(narasi)      # Background Biru
+                elif risk_label == "Moderate / Sedang":
+                    st.success(narasi)   # Background Hijau
+                elif risk_label == "High / Tinggi":
+                    st.warning(narasi)   # Background Kuning/Oranye
+                else:
+                    st.error(narasi)     # Background Merah
+                # ----------------------------------------------------------------
                 
             except Exception as e:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
