@@ -606,9 +606,10 @@ def peta_realtime_fragment():
 
         folium.Marker(location=pekanbaru_coords, popup=popup_text, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m)
 
-        # Encode Logo Image and IoT Image to Base64 to render offline HTML safely
+        # Encode Logo Image, IoT Image, and UPI Logo to Base64 to render offline HTML safely
         logo_base64 = ""
         iot_img_base64 = ""
+        logo_upi_base64 = ""
         try:
             if os.path.exists("logo.png"):
                 with open("logo.png", "rb") as image_file:
@@ -617,10 +618,17 @@ def peta_realtime_fragment():
             if os.path.exists("forestiot4.jpg"):
                 with open("forestiot4.jpg", "rb") as iot_file:
                     iot_img_base64 = f"data:image/jpeg;base64,{base64.b64encode(iot_file.read()).decode()}"
+                    
+            if os.path.exists("logo upi yptk.png"):
+                with open("logo upi yptk.png", "rb") as upi_file:
+                    logo_upi_base64 = f"data:image/png;base64,{base64.b64encode(upi_file.read()).decode()}"
         except Exception:
             pass
             
         logo_img_tag = f'<img src="{logo_base64}" style="height: 55px; background: white; padding: 4px; border-radius: 4px;" alt="Logo">' if logo_base64 else ''
+        
+        # Tag image untuk Logo UPI YPTK
+        logo_upi_tag = f'<img src="{logo_upi_base64}" style="width: 60px; height: auto;" alt="Logo UPI YPTK">' if logo_upi_base64 else ''
         
         # Buat tag image untuk perangkat IoT jika ada, jika tidak ada tampilkan kotak placeholder
         if iot_img_base64:
@@ -706,12 +714,19 @@ def peta_realtime_fragment():
                             <div style="font-size: 12px;">{xai_html}</div>
                         </div>
 
-                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #ffffff; text-align: center; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                            <b style="font-size: 13px;">Produced By/Diproduksi Oleh:</b><br>
-                            <span style="font-size: 12px; font-weight: bold;">Model HSEL Terintegrasi IoT</span><br>
-                            <span style="font-size: 11px; font-style: italic;">Mahasiswa Doctoral Teknologi Informasi<br>Universitas Putra Indonesia YPTK Padang</span><br><br>
-                            <span style="font-size: 12px; color: #0000ff;">Processed Date/Diproses Tanggal: {tanggal_valid}</span><br><br>
-                            <b style="font-size: 11px;">Data Source/Sumber Data:</b> <span style="font-size: 11px;">Sensor IoT Lokal, HSEL Prediction</span>
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #ffffff; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 12px;">
+                                {logo_upi_tag}
+                                <div style="text-align: center;">
+                                    <b style="font-size: 13px;">Produced By/Diproduksi Oleh:</b><br>
+                                    <span style="font-size: 12px; font-weight: bold;">Model HSEL Terintegrasi IoT</span><br>
+                                    <span style="font-size: 11px; font-style: italic;">Mahasiswa Doctoral Teknologi Informasi<br>Universitas Putra Indonesia YPTK Padang</span>
+                                </div>
+                            </div>
+                            <div style="text-align: center;">
+                                <span style="font-size: 12px; color: #0000ff;">Processed Date/Diproses Tanggal: {tanggal_valid}</span><br><br>
+                                <b style="font-size: 11px;">Data Source/Sumber Data:</b> <span style="font-size: 11px;">Sensor IoT Lokal, HSEL Prediction</span>
+                            </div>
                         </div>
                         
                     </div>
@@ -732,7 +747,7 @@ def peta_realtime_fragment():
         
         custom_button_html = f"""
         <button onclick="openMap()" style="width: 100%; padding: 8px 16px; background-color: #ffffff; color: #333; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 14px; transition: 0.3s;" onmouseover="this.style.borderColor='#1f77b4'; this.style.color='#1f77b4'" onmouseout="this.style.borderColor='#ccc'; this.style.color='#333'">
-            🌐 Buka Dashboard Pemantauan
+            🌐 Buka Dashboard Pemantauan Terpadu (Tab Baru)
         </button>
         
         <script>
