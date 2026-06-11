@@ -29,7 +29,7 @@ from io import StringIO, BytesIO
 # === PAGE CONFIG ===
 st.set_page_config(page_title="Smart Fire Prediction HSEL", page_icon="favicon.ico", layout="wide")
 
-# === STYLE KUSTOM (TAMBAHAN FRAME PETA) ===
+# === STYLE KUSTOM ===
 st.markdown("""
     <style>
     .main {background-color: #F9F9F9;}
@@ -86,7 +86,7 @@ risk_styles = {
     "Very High / Sangat Tinggi": ("white", "red")
 }
 
-# === LOAD MODEL, SCALER, DAN SASTRAWI ===
+# === LOAD MODEL, SCALER, SASTRAWI, DAN TEKS MODEL ===
 @st.cache_resource
 def load_model():
     return joblib.load("HSEL_IoT_Model.joblib")
@@ -103,9 +103,21 @@ def load_sastrawi():
     stemmer = stem_factory.create_stemmer()
     return stopword_remover, stemmer
 
+@st.cache_resource
+def load_text_models():
+    vec = joblib.load("tfidf_vectorizer.joblib")
+    mdl = joblib.load("stacking_text_model.joblib")
+    return vec, mdl
+
 model = load_model()
 scaler = load_scaler()
 stopword_remover, stemmer = load_sastrawi()
+
+# Eksekusi load teks model secara global agar aman dari Error NameReference
+try:
+    vectorizer, model_text = load_text_models()
+except Exception:
+    vectorizer, model_text = None, None
 
 # === KONFIG GOOGLE SHEET ===
 SHEET_ID = "1ZscUJ6SLPIF33t8ikVHUmR68b-y3Q9_r_p9d2rDRMCM"
@@ -383,7 +395,7 @@ def indikator_kiri_realtime():
 1. Monitoring rutin kondisi lingkungan
 2. Patroli berkala ringan
 3. Edukasi preventif kepada masyarakat
-4. Dokumentasi kondisi normal
+4. Dokumentasi dan pelaporan kondisi normal
 """)
         elif risk_label == "Moderate / Sedang":
             st.markdown("""
@@ -391,7 +403,7 @@ def indikator_kiri_realtime():
 1. Peningkatan frekuensi patroli
 2. Penyampaian peringatan dini terbatas
 3. Koordinasi internal BPBD dan aparat desa
-4. Pengawasan aktivitas pembakaran
+4. Pengawasan aktivitas pembakaran terbuka
 """)
         elif risk_label == "High / Tinggi":
             st.markdown("""
@@ -523,7 +535,7 @@ def peta_realtime_fragment():
                 <li>Pengetatan larangan pembakaran terbuka</li>
             </ul>"""
 
-        # 3. MEMBUAT PETA (DENGAN KONTROL SKALA DAN ZOOM KHUSUS)
+        # 3. MEMBUAT PETA (Map Base Standar Non-Satelit)
         try:
             with open("Provinsi Riau-KAB_KOTA.geojson", "r") as f:
                 riau_geojson = json.load(f)
@@ -552,17 +564,8 @@ def peta_realtime_fragment():
             </div>
         """, max_width=250)
 
-        # Inisiasi Map dengan Scale Bar bawaan
-        m = folium.Map(location=pekanbaru_coords, zoom_start=11, control_scale=True, tiles='OpenStreetMap')
-
-        # Menambahkan Opsi Basemap Citra Satelit (Elegan untuk GIS)
-        folium.TileLayer(
-            tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-            attr='Google',
-            name='Citra Satelit',
-            overlay=False,
-            control=True
-        ).add_to(m)
+        # Inisiasi Map dengan style Default bawaan Folium (OpenStreetMap) dan Scale Bar
+        m = folium.Map(location=pekanbaru_coords, zoom_start=11, control_scale=True)
 
         # Menambahkan Widget Koordinat Melayang (Khas GIS)
         formatter = "function(num) {return L.Util.formatNum(num, 5) + ' &deg;';};"
@@ -591,16 +594,13 @@ def peta_realtime_fragment():
 
         folium.Marker(location=pekanbaru_coords, popup=popup_text, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m)
 
-        # Aktifkan kontrol untuk switch basemap
-        folium.LayerControl().add_to(m)
-
         # 4. MEMBUAT LAYOUT MACROELEMENT (PANEL XAI, JUDUL, LEGENDA, NORTH ARROW)
         layout_html_template = f"""
         {{% macro html(this, kwargs) %}}
         <style>
             #xai-toggle {{ display: none; }}
             .xai-panel {{
-                position: fixed;
+                position: absolute; /* diubah dari fixed menjadi absolute agar menyatu dengan div framing di hasil download */
                 top: 10px;
                 left: 10px;
                 background-color: rgba(255, 255, 255, 0.95);
@@ -633,6 +633,17 @@ def peta_realtime_fragment():
             }}
             #xai-toggle:not(:checked) ~ .xai-panel .xai-content {{ display: none; }}
             #xai-toggle:not(:checked) ~ .xai-panel {{ width: auto; border-bottom: none; }}
+            
+            /* Komponen melayang lainnya */
+            .box-judul {{
+                position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background-color: rgba(255, 255, 255, 0.9); border: 2px solid grey; border-radius: 5px; padding: 10px 20px; font-size: 14px; font-family: Arial, sans-serif; font-weight: bold; text-align: center; z-index: 9999; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+            }}
+            .box-legenda {{
+                position: absolute; bottom: 30px; right: 30px; background-color: rgba(255, 255, 255, 0.9); border: 2px solid grey; border-radius: 5px; padding: 15px; font-size: 12px; font-family: Arial, sans-serif; z-index: 9999; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); line-height: 1.5;
+            }}
+            .box-arah {{
+                position: absolute; top: 60px; right: 20px; z-index: 9999; background-color: rgba(255, 255, 255, 0.9); padding: 5px; border: 2px solid grey; border-radius: 5px; text-align: center; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+            }}
         </style>
 
         <input type="checkbox" id="xai-toggle">
@@ -661,12 +672,12 @@ def peta_realtime_fragment():
             </div>
         </div>
 
-        <div style="position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background-color: rgba(255, 255, 255, 0.9); border: 2px solid grey; border-radius: 5px; padding: 10px 20px; font-size: 14px; font-family: Arial, sans-serif; font-weight: bold; text-align: center; z-index: 9999; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);">
+        <div class="box-judul">
             Peta Prediksi Risiko Kebakaran Lahan<br>
             <span style="font-size:12px; font-weight:normal;">Wilayah Administratif Kota Pekanbaru</span>
         </div>
         
-        <div style="position: fixed; bottom: 30px; right: 30px; background-color: rgba(255, 255, 255, 0.9); border: 2px solid grey; border-radius: 5px; padding: 15px; font-size: 12px; font-family: Arial, sans-serif; z-index: 9999; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); line-height: 1.5;">
+        <div class="box-legenda">
             <b style="margin-bottom:8px; display:block; font-size:13px;">Tingkat Risiko</b>
             <i style="background: blue; width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 3px; border-radius: 50%;"></i> Rendah<br>
             <div style="clear: both; margin-bottom: 4px;"></div>
@@ -677,7 +688,7 @@ def peta_realtime_fragment():
             <i style="background: red; width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 3px; border-radius: 50%;"></i> Sangat Tinggi
         </div>
         
-        <div style="position: fixed; top: 60px; right: 20px; z-index: 9999; background-color: rgba(255, 255, 255, 0.9); padding: 5px; border: 2px solid grey; border-radius: 5px; text-align: center; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);">
+        <div class="box-arah">
             <div style="font-weight: bold; font-family: Arial, sans-serif; font-size: 14px; color: #333; margin-bottom: 2px;">U</div>
             <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 16px solid red; margin: 0 auto;"></div>
             <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 16px solid #555; margin: 0 auto;"></div>
@@ -689,13 +700,31 @@ def peta_realtime_fragment():
         macro._template = Template(layout_html_template)
         m.get_root().add_child(macro)
 
-        map_html = m.get_root().render()
+        raw_map_html = m.get_root().render()
 
+        # Eksekusi untuk menampilkan peta ke antarmuka Streamlit
         folium_static(m, width=450, height=350)
 
+        # ====== INJEKSI CSS WRAPPER AGAR DOWNLOAD HTML JADI BERBINGKAI ======
+        framed_html = raw_map_html.replace(
+            '<body>',
+            '''<body style="background-color: #eef2f5; font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0;">
+            <div style="background-color: white; padding: 25px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); width: 100%; max-width: 950px; height: 85vh; display: flex; flex-direction: column;">
+                <div style="background-color: #1f77b4; color: white; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 18px; margin-bottom: 20px; text-align: center;">
+                    Hasil Prediksi Pemetaan Peta Interaktif
+                </div>
+                <div style="flex-grow: 1; border: 3px solid #555; border-radius: 8px; overflow: hidden; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.1);">
+            '''
+        ).replace(
+            '</body>',
+            '''</div>
+            </div>
+            </body>'''
+        )
+
         st.download_button(
-            label="📥 Download Peta Interaktif (HTML)",
-            data=map_html,
+            label="📥 Download Peta Interaktif Berbingkai (HTML)",
+            data=framed_html,
             file_name=f"peta_pekanbaru_{int(time.time())}.html",
             mime="text/html",
             use_container_width=True
@@ -782,8 +811,7 @@ def main_dashboard():
             df_daily = df_daily.rename(columns=chart_rename)
             df_vis = df_daily.reset_index()
 
-            x_axis = alt.X('Waktu_DT:T',
-                           axis=alt.Axis(format='%d %b %Y', title='Tanggal', labelAngle=-45, grid=False, tickCount=df_vis.shape[0]))
+            x_axis = alt.X('Waktu_DT:T', axis=alt.Axis(format='%d %b %Y', title='Tanggal', labelAngle=-45, grid=False, tickCount=df_vis.shape[0]))
 
             tab_all, tab1, tab2, tab3, tab4, tab5 = st.tabs([
                 "📈 Semua Data", "🌡️ Suhu Udara", "💧 Kelembapan Udara", "🌧️ Curah Hujan", "💨 Kecepatan Angin", "🌱 Kelembapan Tanah"
@@ -794,9 +822,7 @@ def main_dashboard():
                 
                 selection = alt.selection_point(fields=['Parameter Sensor'], bind='legend')
 
-                chart_base = alt.Chart(df_melted).mark_line(
-                    strokeWidth=3, interpolate='monotone'
-                ).encode(
+                chart_base = alt.Chart(df_melted).mark_line(strokeWidth=3, interpolate='monotone').encode(
                     x=x_axis,
                     y=alt.Y('Nilai:Q', title='Nilai Pembacaan', axis=alt.Axis(grid=True, gridDash=[3,3])),
                     color=alt.Color('Parameter Sensor:N', scale=alt.Scale(scheme='category10'), legend=alt.Legend(orient="top", title=None, labelFontSize=12)),
@@ -876,49 +902,56 @@ def main_dashboard():
 
 main_dashboard()
 
+
 # =========================================================================
 # === BAGIAN PENGUJIAN MANUAL & TEKS DENGAN FRAGMENT KHUSUS ===============
 # =========================================================================
-# Tombol di dalam fragment ini TIDAK AKAN me-refresh seluruh halaman!
+# Manajemen state input manual dengan bind ke widget "key" agar reset tanpa refresh keseluruhan halaman
+if "man_suhu" not in st.session_state: st.session_state.man_suhu = 30.0
+if "man_kel" not in st.session_state: st.session_state.man_kel = 65.0
+if "man_curah" not in st.session_state: st.session_state.man_curah = 10.0
+if "man_angin" not in st.session_state: st.session_state.man_angin = 3.0
+if "man_tanah" not in st.session_state: st.session_state.man_tanah = 50.0
+if "manual_result" not in st.session_state: st.session_state.manual_result = None
+
+def reset_manual():
+    st.session_state.man_suhu = 0.0
+    st.session_state.man_kel = 0.0
+    st.session_state.man_curah = 0.0
+    st.session_state.man_angin = 0.0
+    st.session_state.man_tanah = 0.0
+    st.session_state.manual_result = None
+
+def do_predict_manual():
+    input_df = pd.DataFrame([{
+        'Tavg: Temperatur rata-rata (°C)': st.session_state.man_suhu,
+        'RH_avg: Kelembapan rata-rata (%)': st.session_state.man_kel,
+        'RR: Curah hujan (mm)': st.session_state.man_curah,
+        'ff_avg: Kecepatan angin rata-rata (m/s)': st.session_state.man_angin,
+        'Kelembaban Permukaan Tanah': st.session_state.man_tanah
+    }])
+    scaled_manual = scaler.transform(input_df)
+    st.session_state.manual_result = convert_to_label(model.predict(scaled_manual)[0])
 
 @st.fragment
 def manual_prediction_ui():
     st.markdown("<div class='section-title' style='margin-top: 30px;'>Pengujian Menggunakan Data Meteorologi Manual</div>", unsafe_allow_html=True)
-
-    if "manual_input" not in st.session_state:
-        st.session_state.manual_input = {"suhu": 30.0, "kelembapan": 65.0, "curah": 10.0, "angin": 3.0, "tanah": 50.0}
-    if "manual_result" not in st.session_state:
-        st.session_state.manual_result = None
-
+    
     col1, col2, col3 = st.columns(3)
     with col1:
-        suhu = st.number_input("Suhu Udara (°C)", value=st.session_state.manual_input["suhu"])
-        kelembapan = st.number_input("Kelembapan Udara (%)", value=st.session_state.manual_input["kelembapan"])
+        st.number_input("Suhu Udara (°C)", key="man_suhu")
+        st.number_input("Kelembapan Udara (%)", key="man_kel")
     with col2:
-        curah = st.number_input("Curah Hujan (mm)", value=st.session_state.manual_input["curah"])
-        angin = st.number_input("Kecepatan Angin (m/s)", value=st.session_state.manual_input["angin"])
+        st.number_input("Curah Hujan (mm)", key="man_curah")
+        st.number_input("Kecepatan Angin (m/s)", key="man_angin")
     with col3:
-        tanah = st.number_input("Kelembaban Tanah (%)", value=st.session_state.manual_input["tanah"])
+        st.number_input("Kelembaban Tanah (%)", key="man_tanah")
 
     btn_pred, btn_reset, _ = st.columns([1, 1, 8])
     with btn_pred:
-        if st.button("🔍 Prediksi Manual"):
-            input_df = pd.DataFrame([{
-                'Tavg: Temperatur rata-rata (°C)': suhu,
-                'RH_avg: Kelembapan rata-rata (%)': kelembapan,
-                'RR: Curah hujan (mm)': curah,
-                'ff_avg: Kecepatan angin rata-rata (m/s)': angin,
-                'Kelembaban Permukaan Tanah': tanah
-            }])
-            scaled_manual = scaler.transform(input_df)
-            st.session_state.manual_result = convert_to_label(model.predict(scaled_manual)[0])
-            st.session_state.manual_input.update({"suhu": suhu, "kelembapan": kelembapan, "curah": curah, "angin": angin, "tanah": tanah})
-
+        st.button("🔍 Prediksi Manual", on_click=do_predict_manual)
     with btn_reset:
-        if st.button("🧼 Reset Manual"):
-            st.session_state.manual_input = {"suhu": 0.0, "kelembapan": 0.0, "curah": 0.0, "angin": 0.0, "tanah": 0.0}
-            st.session_state.manual_result = None
-            st.rerun()
+        st.button("🧼 Reset Manual", on_click=reset_manual)
 
     if st.session_state.manual_result:
         hasil = st.session_state.manual_result
@@ -928,34 +961,35 @@ def manual_prediction_ui():
             f"Prediksi Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True
         )
 
+# Manajemen state input teks
+if "txt_input" not in st.session_state: st.session_state.txt_input = ""
+if "txt_result" not in st.session_state: st.session_state.txt_result = None
+if "txt_preprocessing" not in st.session_state: st.session_state.txt_preprocessing = {}
+
+def reset_text():
+    st.session_state.txt_input = ""
+    st.session_state.txt_result = None
+    st.session_state.txt_preprocessing = {}
+
 @st.fragment
 def text_prediction_ui():
     st.markdown("<div class='section-title' style='margin-top: 20px;'>Pengujian Menggunakan Data Teks</div>", unsafe_allow_html=True)
 
-    if "text_input" not in st.session_state:
-        st.session_state.text_input = ""
-    if "text_result" not in st.session_state:
-        st.session_state.text_result = None
-    if "text_preprocessing" not in st.session_state:
-        st.session_state.text_preprocessing = {}
-
-    try:
-        vectorizer, model_text = load_text_models()
-    except Exception:
-        vectorizer, model_text = None, None
-
-    input_text = st.text_area("Masukkan deskripsi lingkungan:", value=st.session_state.text_input, height=120)
+    st.text_area("Masukkan deskripsi lingkungan:", key="txt_input", height=120)
 
     btn_pred_text, btn_reset_text, _ = st.columns([1, 1, 8])
+    with btn_reset_text:
+        st.button("🧼 Reset Teks", on_click=reset_text)
+        
     with btn_pred_text:
         if st.button("🔍 Prediksi Teks"):
-            if input_text.strip() == "":
+            if st.session_state.txt_input.strip() == "":
                 st.warning("Harap masukkan deskripsi teks terlebih dahulu.")
             elif vectorizer is None or model_text is None:
-                st.error("Model teks gagal dimuat. Pastikan file joblib berada di direktori aplikasi.")
+                st.error("Model teks gagal dimuat. Pastikan file 'tfidf_vectorizer.joblib' dan 'stacking_text_model.joblib' berada di direktori aplikasi.")
             else:
                 try:
-                    raw_text = input_text
+                    raw_text = st.session_state.txt_input
                     text_lower = raw_text.lower()
                     text_clean = re.sub(r'[^a-zA-Z\s]', '', text_lower)
                     text_stopword = stopword_remover.remove(text_clean)
@@ -987,27 +1021,19 @@ def text_prediction_ui():
                     pred = model_text.predict(X_trans)[0]
                     label_text = convert_to_label(pred)
 
-                    st.session_state.text_preprocessing = {
+                    st.session_state.txt_preprocessing = {
                         "raw": raw_text, "case_folding": text_lower, "cleansing": text_clean,
                         "stopword": text_stopword, "tokenizing": token_display, "stemming": text_stemmed,
                         "tfidf_df": df_tfidf, "prob_dict": prob_dict
                     }
-                    st.session_state.text_input = input_text
-                    st.session_state.text_result = label_text
+                    st.session_state.txt_result = label_text
 
                 except Exception as e:
                     st.error(f"Terjadi kesalahan saat memproses input teks: {e}")
 
-    with btn_reset_text:
-        if st.button("🧼 Reset Teks"):
-            st.session_state.text_input = ""
-            st.session_state.text_result = None
-            st.session_state.text_preprocessing = {}
-            st.rerun()
-
-    if st.session_state.text_result:
+    if st.session_state.txt_result:
         with st.expander("🛠️ Klik untuk melihat hasil setiap tahapan Pre-processing & Keputusan Model", expanded=False):
-            steps = st.session_state.text_preprocessing
+            steps = st.session_state.txt_preprocessing
             if steps:
                 st.markdown("**1. Original Text**")
                 st.info(steps.get("raw", "-"))
@@ -1037,14 +1063,14 @@ def text_prediction_ui():
                 else:
                     st.info("Model ini tidak menyediakan metrik probabilitas.")
 
-        hasil = st.session_state.text_result
+        hasil = st.session_state.txt_result
         font, bg = risk_styles.get(hasil, ("black", "white"))
         st.markdown(
             f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top: 15px; font-size: 16px;'>"
             f"Hasil Prediksi Tingkat Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True
         )
 
-# Panggil fungsi UI Fragment
+# Render antarmuka pengujian secara terpisah
 manual_prediction_ui()
 text_prediction_ui()
 
