@@ -7,6 +7,7 @@ import folium
 from PIL import Image
 import re
 import altair as alt
+import json # === TAMBAHAN LIBRARY UNTUK BACA GEOJSON ===
 
 # === TAMBAHAN LIBRARY UNTUK XAI ===
 import shap
@@ -209,7 +210,6 @@ def indikator_kiri_realtime():
     if res[0] is None:
         st.warning("Data belum tersedia atau gagal dimuat dari Google Sheets.")
         return
-    # PERBAIKAN: Pastikan res[0] adalah string sebelum dibandingkan dengan "error"
     if isinstance(res[0], str) and res[0] == "error":
         st.error("Kolom wajib tidak ditemukan di Sheets: " + ", ".join(res[1]))
         return
@@ -438,7 +438,6 @@ def main_dashboard():
         # Panggil fragment di dalam kolom ini
         indikator_kiri_realtime()
         
-    # PERBAIKAN: Pastikan res[0] bukan string sebelum di-unpack menjadi DataFrame
     if res[0] is not None and not isinstance(res[0], str):
         df, clean_df, scaled_all, fitur = res
         last_row = df.iloc[-1]
@@ -447,7 +446,12 @@ def main_dashboard():
         
         with col_tengah:
             st.markdown("<h5 style='text-align: center;'>Visualisasi Peta Lokasi Prediksi Kebakaran</h5>", unsafe_allow_html=True)
-            pekanbaru_coords = [-0.959240, 100.396000]
+            
+            # --- MODIFIKASI DIMULAI DI SINI ---
+            
+            # Koordinat pusat Pekanbaru untuk memusatkan peta
+            pekanbaru_coords = [0.5333, 101.4500] 
+            
             color_map = {
                 "Low / Rendah": "blue",
                 "Moderate / Sedang": "green",
@@ -456,8 +460,34 @@ def main_dashboard():
             }
             marker_color = color_map.get(risk_label, "gray")
 
+            # 1. Membaca dan Memfilter File GeoJSON
+            try:
+                with open("Provinsi Riau-KAB_KOTA.geojson", "r") as f:
+                    riau_geojson = json.load(f)
+                
+                # Mengambil hanya fitur/poligon milik Pekanbaru
+                pekanbaru_feature = None
+                for feature in riau_geojson['features']:
+                    nama_wilayah = feature['properties'].get('nama', '').lower()
+                    kab_kota = feature['properties'].get('kab_kota', '').lower()
+                    
+                    if 'pekanbaru' in nama_wilayah or 'pekanbaru' in kab_kota:
+                        pekanbaru_feature = feature
+                        break
+                
+                # Membuat format GeoJSON baru khusus Pekanbaru
+                pekanbaru_geojson = {
+                    "type": "FeatureCollection",
+                    "features": [pekanbaru_feature] if pekanbaru_feature else []
+                }
+            except Exception as e:
+                st.error(f"Gagal memuat file GeoJSON: {e}")
+                pekanbaru_geojson = None
+
+            # 2. Merangkai Teks Popup IoT
             popup_text = folium.Popup(f"""
                 <div style='width: 230px; font-size: 13px; line-height: 1.5;'>
+                <b>Wilayah:</b> Kota Pekanbaru<br>
                 <b>Prediksi:</b> {risk_label}<br>
                 <b>Suhu:</b> {float(last_num[fitur[0]]):.1f} °C<br>
                 <b>Kelembapan:</b> {float(last_num[fitur[1]]):.1f} %<br>
@@ -468,22 +498,37 @@ def main_dashboard():
                 </div>
             """, max_width=250)
 
-            m = folium.Map(location=pekanbaru_coords, zoom_start=11)
-            folium.Circle(
-                location=pekanbaru_coords,
-                radius=3000,
-                color=marker_color,
-                fill=True,
-                fill_color=marker_color,
-                fill_opacity=0.3
-            ).add_to(m)
+            # 3. Membuat Peta Dasar
+            m = folium.Map(location=pekanbaru_coords, zoom_start=10)
+
+            # 4. Menambahkan Poligon Pekanbaru dengan Warna Dinamis
+            if pekanbaru_geojson and pekanbaru_geojson["features"]:
+                folium.GeoJson(
+                    pekanbaru_geojson,
+                    style_function=lambda feature, color=marker_color: {
+                        'fillColor': color,
+                        'color': color,       
+                        'weight': 2,          
+                        'fillOpacity': 0.4,   
+                    },
+                    tooltip=folium.GeoJsonTooltip(
+                        fields=['nama'],
+                        aliases=['Wilayah:'],
+                        style="font-weight: bold; font-size: 14px;"
+                    )
+                ).add_to(m)
+
+            # 5. Menambahkan Marker Titik Sensor IoT (Koordinat ini bisa disesuaikan dengan titik presisi sensor)
             folium.Marker(
                 location=pekanbaru_coords,
                 popup=popup_text,
                 icon=folium.Icon(color=marker_color, icon="info-sign")
             ).add_to(m)
 
+            # 6. Menampilkan ke Streamlit
             folium_static(m, width=450, height=350)
+            
+            # --- MODIFIKASI BERAKHIR DI SINI ---
 
         with col_kanan:
             st.markdown("<h5 style='text-align: center;'>IoT Smart Fire Prediction</h5>", unsafe_allow_html=True)
@@ -556,10 +601,8 @@ def main_dashboard():
             with tab_all:
                 df_melted = df_vis.melt(id_vars=['Waktu_DT'], var_name='Parameter Sensor', value_name='Nilai')
                 
-                # 1. Buat fitur seleksi interaktif pada legenda
                 selection = alt.selection_point(fields=['Parameter Sensor'], bind='legend')
 
-                # 2. Modifikasi desain garis (smooth) dan warna
                 chart_base = alt.Chart(df_melted).mark_line(
                     strokeWidth=3,
                     interpolate='monotone'
@@ -573,26 +616,21 @@ def main_dashboard():
                     tooltip=['Waktu_DT:T', 'Parameter Sensor:N', alt.Tooltip('Nilai:Q', format='.1f')]
                 )
 
-                # 3. Tambahkan titik bulat
                 points = chart_base.mark_circle(size=60, opacity=0.8).encode(
                     opacity=alt.condition(selection, alt.value(1), alt.value(0.1))
                 )
 
-                # 4. TAMBAHAN: Layer teks untuk memunculkan angka di setiap titik
                 text_labels = chart_base.mark_text(
                     align='center',
                     baseline='bottom',
-                    dy=-10, # Menggeser posisi angka sedikit ke atas titik (jarak 10 pixel)
+                    dy=-10, 
                     fontSize=11,
                     fontWeight='bold'
                 ).encode(
-                    # Format '.1f' membatasi hanya 1 angka di belakang koma (misal: 35.0)
                     text=alt.Text('Nilai:Q', format='.1f'), 
-                    # Teks akan hilang sepenuhnya (opacity 0) jika parameter lain diklik di legenda
                     opacity=alt.condition(selection, alt.value(1), alt.value(0))
                 )
 
-                # Gabungkan garis, titik, dan label teks
                 chart_all = (chart_base + points + text_labels).add_params(
                     selection
                 ).properties(
