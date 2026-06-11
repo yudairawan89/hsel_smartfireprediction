@@ -447,7 +447,10 @@ def main_dashboard():
         
         with col_tengah:
             st.markdown("<h5 style='text-align: center;'>Visualisasi Peta Lokasi Prediksi Kebakaran</h5>", unsafe_allow_html=True)
-            pekanbaru_coords = [-0.959240, 100.396000]
+            
+            # --- UPDATE KOORDINAT UPI YPTK PADANG ---
+            upi_yptk_coords = [-0.8953, 100.3957]
+            
             color_map = {
                 "Low / Rendah": "blue",
                 "Moderate / Sedang": "green",
@@ -468,17 +471,18 @@ def main_dashboard():
                 </div>
             """, max_width=250)
 
-            m = folium.Map(location=pekanbaru_coords, zoom_start=11)
+            # Update lokasi map ke koordinat baru dan zoom lebih dekat
+            m = folium.Map(location=upi_yptk_coords, zoom_start=15)
             folium.Circle(
-                location=pekanbaru_coords,
-                radius=3000,
+                location=upi_yptk_coords,
+                radius=500,
                 color=marker_color,
                 fill=True,
                 fill_color=marker_color,
                 fill_opacity=0.3
             ).add_to(m)
             folium.Marker(
-                location=pekanbaru_coords,
+                location=upi_yptk_coords,
                 popup=popup_text,
                 icon=folium.Icon(color=marker_color, icon="info-sign")
             ).add_to(m)
@@ -556,10 +560,10 @@ def main_dashboard():
             with tab_all:
                 df_melted = df_vis.melt(id_vars=['Waktu_DT'], var_name='Parameter Sensor', value_name='Nilai')
                 
-                # 1. Buat fitur seleksi interaktif pada legenda
+                # Fitur seleksi interaktif pada legenda
                 selection = alt.selection_point(fields=['Parameter Sensor'], bind='legend')
 
-                # 2. Modifikasi desain garis (smooth) dan warna
+                # Desain garis (smooth monotone)
                 chart_base = alt.Chart(df_melted).mark_line(
                     strokeWidth=3,
                     interpolate='monotone'
@@ -573,26 +577,24 @@ def main_dashboard():
                     tooltip=['Waktu_DT:T', 'Parameter Sensor:N', alt.Tooltip('Nilai:Q', format='.1f')]
                 )
 
-                # 3. Tambahkan titik bulat
+                # Titik bulat
                 points = chart_base.mark_circle(size=60, opacity=0.8).encode(
                     opacity=alt.condition(selection, alt.value(1), alt.value(0.1))
                 )
 
-                # 4. TAMBAHAN: Layer teks untuk memunculkan angka di setiap titik
+                # Label teks otomatis
                 text_labels = chart_base.mark_text(
                     align='center',
                     baseline='bottom',
-                    dy=-10, # Menggeser posisi angka sedikit ke atas titik (jarak 10 pixel)
+                    dy=-10,
                     fontSize=11,
                     fontWeight='bold'
                 ).encode(
-                    # Format '.1f' membatasi hanya 1 angka di belakang koma (misal: 35.0)
                     text=alt.Text('Nilai:Q', format='.1f'), 
-                    # Teks akan hilang sepenuhnya (opacity 0) jika parameter lain diklik di legenda
                     opacity=alt.condition(selection, alt.value(1), alt.value(0))
                 )
 
-                # Gabungkan garis, titik, dan label teks
+                # Gabungkan
                 chart_all = (chart_base + points + text_labels).add_params(
                     selection
                 ).properties(
@@ -868,6 +870,6 @@ st.markdown("""
     color: white;
 '>
     <p style='margin: 0; font-size: 30px; font-weight: bold; line-height: 1.2;'>Smart Fire Prediction HSEL Model</p>
-    <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
+    <p style='margin-0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
 </div>
 """, unsafe_allow_html=True)
