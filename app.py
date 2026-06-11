@@ -141,8 +141,8 @@ def dashboard_realtime():
 
     if df is None or df.empty:
         st.warning("Data belum tersedia atau kosong di Google Sheets.")
-        return 
-    
+        return
+
     df.columns = [c.strip() for c in df.columns]
 
     rename_map_candidates = {
@@ -243,35 +243,35 @@ def dashboard_realtime():
         # =================================================================
         with st.expander("📊 Analisis Keputusan Model (XAI)"):
             st.markdown("<span style='font-size:14px; color:gray;'>Grafik di bawah menunjukkan seberapa besar setiap parameter sensor berkontribusi terhadap prediksi saat ini.</span>", unsafe_allow_html=True)
-            
+
             try:
                 # 1. Data yang masuk ke kalkulasi model TETAP data yang sudah di-scale
                 data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
                 background_data = pd.DataFrame(shap.sample(scaled_all, 50), columns=fitur)
-                
+
                 # 2. Kalkulasi SHAP values berdasarkan data scaled
-                explainer = shap.Explainer(model.predict, background_data) 
+                explainer = shap.Explainer(model.predict, background_data)
                 shap_values = explainer(data_realtime_scaled)
-                
+
                 # 3. Timpa data pada objek UTAMA menggunakan array 2D dari clean_df baris terakhir.
-                data_realtime_raw = clean_df.iloc[-1:].values 
+                data_realtime_raw = clean_df.iloc[-1:].values
                 shap_values.data = data_realtime_raw
-                
+
                 # 4. PERBAIKAN FINAL: Buat "Kanvas" (Figure) terlebih dahulu sebelum SHAP dipanggil
-                plt.rcParams.update({'font.size': 14}) # Perbesar ukuran font
-                fig, ax = plt.subplots(figsize=(10, 6)) # Kunci ukuran dan objek figure
-                
+                plt.rcParams.update({'font.size': 14})  # Perbesar ukuran font
+                fig, ax = plt.subplots(figsize=(10, 6))  # Kunci ukuran dan objek figure
+
                 # Biarkan SHAP menggambar di kanvas 'ax' yang baru saja kita buat
                 shap.plots.waterfall(shap_values[0], show=False)
-                
+
                 # 5. Menambahkan Persentase ke dalam Teks Balok
                 total_abs_shap = sum(abs(v) for v in shap_values[0].values)
-                
+
                 for text in ax.texts:
                     text_str = text.get_text().strip()
                     # Ubah minus unicode menjadi minus standar agar float() tidak error
                     clean_str = text_str.replace('−', '-')
-                    
+
                     try:
                         val = float(clean_str)
                         if total_abs_shap > 0:
@@ -281,14 +281,106 @@ def dashboard_realtime():
                     except ValueError:
                         # Abaikan jika teks bukan angka (misal: tulisan "f(x)")
                         pass
-                
+
                 # Tampilkan di Streamlit dengan DPI tinggi menggunakan 'fig' yang sudah aman
-                st.pyplot(fig, bbox_inches='tight', dpi=300) 
-                
+                st.pyplot(fig, bbox_inches='tight', dpi=300)
+
                 # Bersihkan figure dan kembalikan font ke normal
                 plt.clf()
                 plt.rcParams.update({'font.size': 10})
-                
+
+                # =================================================================
+                # === KALKULASI DAFTAR KONTRIBUSI FITUR (UNTUK NARASI DINAMIS) ====
+                # =================================================================
+                # Membentuk list 'kontribusi' berisi nama fitur, nilai SHAP, dan
+                # persentase kontribusi, diurutkan dari yang paling dominan.
+                shap_vals_arr = shap_values[0].values
+                kontribusi = []
+                for nama_f, shap_v in zip(fitur, shap_vals_arr):
+                    pct_f = (abs(float(shap_v)) / total_abs_shap) * 100 if total_abs_shap > 0 else 0.0
+                    kontribusi.append({
+                        "fitur": nama_f,
+                        "shap_val": float(shap_v),
+                        "pct": pct_f
+                    })
+                kontribusi = sorted(kontribusi, key=lambda x: x["pct"], reverse=True)
+
+                # =================================================================
+                # === ANALISIS DETAIL KEPUTUSAN MODEL (XAI) - NARASI DINAMIS ======
+                # =================================================================
+                st.markdown("<h4 style='margin-top: 25px;'>Analisis Detail Keputusan Model (XAI)</h4>", unsafe_allow_html=True)
+
+                # 1. Paragraf Pembuka Dinamis Berdasarkan 4 Tingkat Risiko
+                if risk_label == "Low / Rendah":
+                    st.success("Kondisi lingkungan saat ini terpantau **sangat aman dan stabil**. Berdasarkan analisis *Explainable AI* (SHAP), berikut adalah dominasi faktor-faktor alam yang sukses meredam potensi kebakaran:")
+                elif risk_label == "Moderate / Sedang":
+                    st.info("Kondisi lingkungan saat ini terpantau **cukup stabil namun memerlukan pemantauan berkala**. Berikut adalah rincian faktor yang memengaruhi keseimbangan risiko saat ini:")
+                elif risk_label == "High / Tinggi":
+                    st.warning("Kondisi lingkungan saat ini terpantau **kritis**. Berdasarkan analisis *Explainable AI* (SHAP), terdapat ancaman bahaya yang dipicu oleh memburuknya faktor-faktor berikut:")
+                elif risk_label == "Very High / Sangat Tinggi":
+                    st.error("Kondisi lingkungan saat ini berada pada fase **SANGAT EKSTREM**. Faktor-faktor alam berikut secara masif mendorong eskalasi kebakaran lahan ke tingkat bahaya tertinggi:")
+
+                # Mapping warna icon berdasarkan urutan kontribusi (1 terpenting s.d. ke-5)
+                icons = ["🔴", "🟠", "🟡", "🟢", "⚪"]
+
+                # 2. Perulangan Rincian Pengaruh Fitur
+                for i, factor in enumerate(kontribusi):
+                    icon = icons[i] if i < len(icons) else "⚪"
+                    nama_fitur = str(factor['fitur']).lower()
+                    persen = factor['pct']
+                    arah = factor['shap_val']
+
+                    st.markdown(f"**{icon} {factor['fitur'].title()} ({persen:.1f}%)**")
+
+                    if persen < 5.0:
+                        if arah > 0:
+                            st.write("- Memberikan dorongan minor terhadap potensi risiko. Pengaruhnya saat ini tertutupi oleh faktor dominan lainnya.")
+                        else:
+                            st.write("- Memiliki efek peredaman yang sangat kecil terhadap prediksi saat ini. Kondisinya belum cukup signifikan untuk memengaruhi status lingkungan secara keseluruhan.")
+
+                    else:
+                        # --- LOGIKA UNTUK KELEMBABAN TANAH ---
+                        if "tanah" in nama_fitur:
+                            if arah > 0:
+                                st.write("- **Meningkatkan Risiko:** Merupakan faktor pendorong utama. Kelembaban tanah yang rendah menunjukkan kondisi lahan yang teramat kering sehingga materi vegetasi sangat rentan terbakar.")
+                            else:
+                                st.write("- **Meredam Risiko:** Kelembaban tanah terdeteksi cukup tinggi (basah/lembab). Kondisi ini bertindak sebagai tameng alami yang sangat baik untuk menghambat kemunculan maupun penyebaran titik api.")
+
+                        # --- LOGIKA UNTUK KELEMBAPAN UDARA (RH) ---
+                        elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur:
+                            if arah > 0:
+                                st.write("- **Meningkatkan Risiko:** Berkontribusi memperburuk kondisi lahan. Udara yang kering mempercepat proses pengeringan bahan bakar alami seperti semak belukar dan dedaunan mati.")
+                            else:
+                                st.write("- **Meredam Risiko:** Tingkat kelembapan udara yang tinggi membantu menjaga kebasahan partikel di udara dan menekan kemungkinan material vegetasi untuk terpicu api.")
+
+                        # --- LOGIKA UNTUK KECEPATAN ANGIN ---
+                        elif "angin" in nama_fitur or "ff" in nama_fitur:
+                            if arah > 0:
+                                st.write("- **Mempercepat Eskalasi:** Angin berpotensi menjadi katalisator destruktif. Kecepatan angin saat ini berisiko memperluas area kebakaran dengan sangat cepat akibat pasokan oksigen yang masif.")
+                            else:
+                                st.write("- **Kondisi Stabil:** Pergerakan angin yang relatif lambat dan tenang tidak memberikan ancaman berarti terhadap potensi rambatan titik api saat ini.")
+
+                        # --- LOGIKA UNTUK TEMPERATUR / SUHU ---
+                        elif "suhu" in nama_fitur or "temperatur" in nama_fitur or "tavg" in nama_fitur:
+                            if arah > 0:
+                                st.write("- **Meningkatkan Risiko:** Suhu lingkungan yang sangat panas memicu penguapan ekstraksi air dari vegetasi secara masif, menciptakan kondisi ideal bagi penyalaan titik api secara spontan.")
+                            else:
+                                st.write("- **Meredam Risiko:** Suhu udara yang tergolong sejuk atau normal membantu menjaga stabilitas termal lingkungan dan meminimalisir risiko penyalaan api secara alami.")
+
+                        # --- LOGIKA UNTUK CURAH HUJAN ---
+                        elif "hujan" in nama_fitur or "rr" in nama_fitur:
+                            if arah > 0:
+                                st.write("- **Meningkatkan Risiko:** Ketiadaan curah hujan (kemarau kering) menghilangkan faktor pendingin alami utama, sehingga sangat mendukung kelangsungan siklus kebakaran lahan.")
+                            else:
+                                st.write("- **Meredam Risiko:** Curah hujan yang turun merupakan faktor pendingin krusial yang secara efektif membasahi seluruh permukaan lahan dan mematikan potensi api secara langsung.")
+
+                        # --- FALLBACK LOGIC ---
+                        else:
+                            if arah > 0:
+                                st.write("- Secara kalkulasi sistem berkontribusi dalam meningkatkan potensi risiko kebakaran pada area pengamatan.")
+                            else:
+                                st.write("- Secara kalkulasi sistem berkontribusi dalam menstabilkan dan menurunkan potensi risiko kebakaran pada area pengamatan.")
+
             except Exception as e:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
 
@@ -424,17 +516,17 @@ Tingkat risiko kebakaran sangat tinggi. Intensitas api pada kategori sangat ting
 
     # === TAMBAHAN VISUALISASI TREN (ALTAIR KUSTOM) ===
     st.markdown("<div class='section-title' style='margin-bottom: 15px;'>Visualisasi Tren Data Sensor</div>", unsafe_allow_html=True)
-    
+
     df_chart = clean_df.copy()
     waktu_clean = df['Waktu'].astype(str).str.replace(' - ', ' ', regex=False)
     df_chart['Waktu_DT'] = pd.to_datetime(waktu_clean, errors='coerce')
     df_chart = df_chart.dropna(subset=['Waktu_DT'])
-    
+
     if not df_chart.empty:
         df_chart = df_chart.set_index('Waktu_DT')
         df_daily = df_chart[fitur].resample('D').mean().dropna()
         df_daily = df_daily.tail(15)
-        
+
         chart_rename = {
             'Tavg: Temperatur rata-rata (°C)': 'Suhu (°C)',
             'RH_avg: Kelembapan rata-rata (%)': 'Kelembapan (%)',
@@ -444,8 +536,8 @@ Tingkat risiko kebakaran sangat tinggi. Intensitas api pada kategori sangat ting
         }
         df_daily = df_daily.rename(columns=chart_rename)
         df_vis = df_daily.reset_index()
-        
-        x_axis = alt.X('Waktu_DT:T', 
+
+        x_axis = alt.X('Waktu_DT:T',
                        axis=alt.Axis(format='%d %b %Y', title='Tanggal', labelAngle=-45, grid=False, tickCount=df_vis.shape[0]))
 
         tab_all, tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -456,7 +548,7 @@ Tingkat risiko kebakaran sangat tinggi. Intensitas api pada kategori sangat ting
             "💨 Kecepatan Angin",
             "🌱 Kelembapan Tanah"
         ])
-        
+
         with tab_all:
             df_melted = df_vis.melt(id_vars=['Waktu_DT'], var_name='Parameter Sensor', value_name='Nilai')
             chart_all = alt.Chart(df_melted).mark_line(strokeWidth=2, point=True).encode(
@@ -466,19 +558,19 @@ Tingkat risiko kebakaran sangat tinggi. Intensitas api pada kategori sangat ting
                 tooltip=['Waktu_DT:T', 'Parameter Sensor:N', alt.Tooltip('Nilai:Q', format='.1f')]
             ).properties(height=400).interactive()
             st.altair_chart(chart_all, use_container_width=True)
-            
+
         with tab1:
             chart_temp = alt.Chart(df_vis).mark_line(color="#ff5733", strokeWidth=3, point=alt.OverlayMarkDef(color="#ff5733", size=50)).encode(
                 x=x_axis, y=alt.Y('Suhu (°C):Q'), tooltip=['Waktu_DT:T', alt.Tooltip('Suhu (°C):Q', format='.1f')]
             ).properties(height=350).interactive()
             st.altair_chart(chart_temp, use_container_width=True)
-            
+
         with tab2:
             chart_hum = alt.Chart(df_vis).mark_line(color="#33d4ff", strokeWidth=3, point=alt.OverlayMarkDef(color="#33d4ff", size=50)).encode(
                 x=x_axis, y=alt.Y('Kelembapan (%):Q'), tooltip=['Waktu_DT:T', alt.Tooltip('Kelembapan (%):Q', format='.1f')]
             ).properties(height=350).interactive()
             st.altair_chart(chart_hum, use_container_width=True)
-            
+
         with tab3:
             base = alt.Chart(df_vis).encode(x=x_axis)
             bar = base.mark_bar(color="#335eff", opacity=0.7, size=25).encode(
@@ -493,19 +585,19 @@ Tingkat risiko kebakaran sangat tinggi. Intensitas api pada kategori sangat ting
             )
             chart_rain = (bar + line + point).properties(height=350).interactive()
             st.altair_chart(chart_rain, use_container_width=True)
-            
+
         with tab4:
             chart_wind = alt.Chart(df_vis).mark_line(color="#a833ff", strokeWidth=3, point=alt.OverlayMarkDef(color="#a833ff", size=50)).encode(
                 x=x_axis, y=alt.Y('Kecepatan Angin (m/s):Q'), tooltip=['Waktu_DT:T', alt.Tooltip('Kecepatan Angin (m/s):Q', format='.1f')]
             ).properties(height=350).interactive()
             st.altair_chart(chart_wind, use_container_width=True)
-            
+
         with tab5:
             chart_soil = alt.Chart(df_vis).mark_line(color="#33ff5e", strokeWidth=3, point=alt.OverlayMarkDef(color="#33ff5e", size=50)).encode(
                 x=x_axis, y=alt.Y('Kelembaban Tanah (%):Q'), tooltip=['Waktu_DT:T', alt.Tooltip('Kelembaban Tanah (%):Q', format='.1f')]
             ).properties(height=350).interactive()
             st.altair_chart(chart_soil, use_container_width=True)
-            
+
     else:
         st.info("Data tidak dapat diproses untuk grafik. Pastikan format kolom Waktu pada file CSV valid.")
 
@@ -611,19 +703,19 @@ with btn_pred_text:
                 tokens = text_stopword.split()
                 token_display = "[" + ", ".join(tokens) + "]"
                 text_stemmed = stemmer.stem(" ".join(tokens))
-                
+
                 # --- TF-IDF TRANSFORM ---
                 X_trans = vectorizer.transform([text_stemmed])
 
                 # Ekstrak Bobot TF-IDF
                 feature_names = vectorizer.get_feature_names_out()
                 dense_vector = X_trans.todense().tolist()[0]
-                
-                tfidf_details = [{"Kata (Term)": word, "Skor TF-IDF": round(score, 4)} 
+
+                tfidf_details = [{"Kata (Term)": word, "Skor TF-IDF": round(score, 4)}
                                  for word, score in zip(feature_names, dense_vector) if score > 0]
                 tfidf_details = sorted(tfidf_details, key=lambda x: x["Skor TF-IDF"], reverse=True)
                 df_tfidf = pd.DataFrame(tfidf_details)
-                
+
                 # Ekstrak Probabilitas Model HSEL (jika model mendukung predict_proba)
                 prob_dict = {}
                 try:
@@ -652,7 +744,7 @@ with btn_pred_text:
                     "tfidf_df": df_tfidf,
                     "prob_dict": prob_dict
                 }
-                
+
                 st.session_state.text_input = input_text
                 st.session_state.text_result = label_text
 
@@ -678,13 +770,13 @@ if st.session_state.text_result:
 
             st.markdown("**3. Cleansing (Penghapusan Karakter Khusus & Angka)**")
             st.info(steps.get("cleansing", "-"))
-            
+
             st.markdown("**4. Stopword (Penghapusan Kata)**")
             st.info(steps.get("stopword", "-"))
 
             st.markdown("**5. Tokenization (Pemenggalan Kata)**")
             st.info(steps.get("tokenizing", "[]"))
-            
+
             st.markdown("**6. Stemming (Pemotongan Imbuhan)**")
             st.info(steps.get("stemming", "-"))
 
@@ -699,7 +791,7 @@ if st.session_state.text_result:
             # Menampilkan Alasan Prediksi (Probabilitas)
             st.markdown("**8. Analisis Keputusan Model (Probabilitas HSEL)**")
             st.markdown("<span style='font-size:14px; color:gray;'>Berdasarkan kombinasi bobot TF-IDF di atas, berikut adalah tingkat keyakinan model Stacking Ensemble untuk setiap kelas:</span>", unsafe_allow_html=True)
-            
+
             prob_dict = steps.get("prob_dict")
             if prob_dict:
                 for label, prob in prob_dict.items():
@@ -707,7 +799,7 @@ if st.session_state.text_result:
                     if "Moderate" in label: bar_color = "green"
                     elif "Sangat Tinggi" in label: bar_color = "red"
                     elif "High" in label: bar_color = "orange"
-                    
+
                     st.markdown(f"**{label}** ({prob*100:.1f}%)")
                     st.progress(float(prob))
             else:
