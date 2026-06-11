@@ -57,10 +57,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === STATE MANAGEMENT UNTUK ALARM ANTI-SPAM ===
-if "last_alert_time" not in st.session_state:
-    st.session_state.last_alert_time = 0
-
 # === FUNGSI BANTUAN ===
 def convert_day_to_indonesian(day_name):
     return {
@@ -266,27 +262,6 @@ def indikator_kiri_realtime():
 
     risk_label = last_row["Prediksi Kebakaran"]
     font, bg = risk_styles.get(risk_label, ("black", "white"))
-
-    # === IMPLEMENTASI NOTIFIKASI INTERNAL (UI & AUDIO) ===
-    if risk_label in ["High / Tinggi", "Very High / Sangat Tinggi"]:
-        st.error(f"🚨 **STATUS DARURAT ({risk_label})**: Segera jalankan protokol peringatan dini dan tindak lanjut operasi lapangan!")
-        
-        # Logika Anti-Spam (Audio & Toast hanya dipicu 1 kali per 30 detik meski halaman refresh setiap 7 detik)
-        current_time = time.time()
-        if (current_time - st.session_state.last_alert_time) > 30:
-            st.toast(f"⚠️ PERHATIAN: Risiko Kebakaran {risk_label.split('/')[1].strip()} Terdeteksi!", icon="🚨")
-            
-            # Putar audio alarm (beep pendek) menggunakan iframe tersembunyi
-            alarm_html = """
-                <audio autoplay>
-                    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
-                </audio>
-            """
-            components.html(alarm_html, width=0, height=0)
-            
-            # Perbarui waktu terakhir alarm dipicu
-            st.session_state.last_alert_time = current_time
-    # ======================================================
 
     sensor_df = pd.DataFrame({
         "Variabel": fitur,
