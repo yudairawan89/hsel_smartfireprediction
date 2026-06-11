@@ -7,7 +7,10 @@ import folium
 from PIL import Image
 import re
 import altair as alt
-import json # === TAMBAHAN LIBRARY UNTUK BACA GEOJSON ===
+
+# === TAMBAHAN LIBRARY UNTUK BACA GEOJSON & KOMPONEN PETA ===
+import json
+from branca.element import Template, MacroElement
 
 # === TAMBAHAN LIBRARY UNTUK XAI ===
 import shap
@@ -421,6 +424,143 @@ Tingkat risiko kebakaran sangat tinggi. Intensitas api pada kategori sangat ting
 6. Pengetatan larangan pembakaran terbuka
 """)
 
+# =========================================================================
+# === BAGIAN PETA REALTIME FRAGMENT (REFRESH 7 DETIK) =====================
+# =========================================================================
+@st.fragment(run_every=7)
+def peta_realtime_fragment():
+    df_raw = load_data()
+    res = preprocess_sensor_data(df_raw)
+    
+    if res[0] is not None and not isinstance(res[0], str):
+        df, clean_df, scaled_all, fitur = res
+        last_row = df.iloc[-1]
+        last_num = clean_df.iloc[-1]
+        risk_label = last_row["Prediksi Kebakaran"]
+        
+        # Koordinat pusat Pekanbaru
+        pekanbaru_coords = [0.5333, 101.4500] 
+        color_map = {
+            "Low / Rendah": "blue",
+            "Moderate / Sedang": "green",
+            "High / Tinggi": "orange",
+            "Very High / Sangat Tinggi": "red"
+        }
+        marker_color = color_map.get(risk_label, "gray")
+
+        # 1. Membaca dan Memfilter File GeoJSON
+        try:
+            with open("Provinsi Riau-KAB_KOTA.geojson", "r") as f:
+                riau_geojson = json.load(f)
+            
+            pekanbaru_feature = None
+            for feature in riau_geojson['features']:
+                nama_wilayah = feature['properties'].get('nama', '').lower()
+                kab_kota = feature['properties'].get('kab_kota', '').lower()
+                
+                if 'pekanbaru' in nama_wilayah or 'pekanbaru' in kab_kota:
+                    pekanbaru_feature = feature
+                    break
+            
+            pekanbaru_geojson = {
+                "type": "FeatureCollection",
+                "features": [pekanbaru_feature] if pekanbaru_feature else []
+            }
+        except Exception as e:
+            st.error(f"Gagal memuat file GeoJSON: {e}")
+            pekanbaru_geojson = None
+
+        # 2. Merangkai Teks Popup IoT
+        popup_text = folium.Popup(f"""
+            <div style='width: 230px; font-size: 13px; line-height: 1.5;'>
+            <b>Wilayah:</b> Kota Pekanbaru<br>
+            <b>Prediksi:</b> {risk_label}<br>
+            <b>Suhu:</b> {float(last_num[fitur[0]]):.1f} °C<br>
+            <b>Kelembapan:</b> {float(last_num[fitur[1]]):.1f} %<br>
+            <b>Curah Hujan:</b> {float(last_num[fitur[2]]):.1f} mm<br>
+            <b>Kecepatan Angin:</b> {float(last_num[fitur[3]]):.1f} m/s<br>
+            <b>Kelembaban Tanah:</b> {float(last_num[fitur[4]]):.1f} %<br>
+            <b>Waktu:</b> {last_row['Waktu']}
+            </div>
+        """, max_width=250)
+
+        # 3. Membuat Peta Dasar
+        m = folium.Map(location=pekanbaru_coords, zoom_start=10)
+
+        # 4. Menambahkan Poligon Pekanbaru dengan Warna Dinamis
+        if pekanbaru_geojson and pekanbaru_geojson["features"]:
+            folium.GeoJson(
+                pekanbaru_geojson,
+                style_function=lambda feature, color=marker_color: {
+                    'fillColor': color,
+                    'color': color,       
+                    'weight': 2,          
+                    'fillOpacity': 0.4,   
+                },
+                tooltip=folium.GeoJsonTooltip(
+                    fields=['nama'],
+                    aliases=['Wilayah:'],
+                    style="font-weight: bold; font-size: 14px;"
+                )
+            ).add_to(m)
+
+        # 5. Menambahkan Marker Titik Sensor IoT
+        folium.Marker(
+            location=pekanbaru_coords,
+            popup=popup_text,
+            icon=folium.Icon(color=marker_color, icon="info-sign")
+        ).add_to(m)
+
+        # 6. Menambahkan Judul Peta
+        title_html = '''
+             <h3 align="center" style="font-size:14px; font-weight:bold; margin-top:10px;">
+             Peta Prediksi Risiko Kebakaran<br>Kota Pekanbaru
+             </h3>
+             '''
+        m.get_root().html.add_child(folium.Element(title_html))
+
+        # 7. Menambahkan Legenda (Floating Legend Box)
+        legend_html = """
+        {% macro html(this, kwargs) %}
+        <div style="
+            position: fixed; 
+            bottom: 30px;
+            right: 30px;
+            width: 140px;
+            height: 125px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 2px solid grey;
+            border-radius: 5px;
+            z-index: 9999;
+            font-size: 12px;
+            padding: 10px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+            ">
+            <b style="margin-bottom:5px; display:block;">Tingkat Risiko</b>
+            <i style="background: blue; width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 2px; border-radius: 50%;"></i> Rendah<br><br>
+            <i style="background: green; width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 2px; border-radius: 50%;"></i> Sedang<br><br>
+            <i style="background: orange; width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 2px; border-radius: 50%;"></i> Tinggi<br><br>
+            <i style="background: red; width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 2px; border-radius: 50%;"></i> Sangat Tinggi
+        </div>
+        {% endmacro %}
+        """
+        macro = MacroElement()
+        macro._template = Template(legend_html)
+        m.get_root().add_child(macro)
+
+        # 8. Menampilkan ke Streamlit
+        folium_static(m, width=450, height=350)
+
+        # 9. Tombol Download Peta Interaktif
+        map_html = m.get_root().render()
+        st.download_button(
+            label="📥 Download Peta Interaktif (HTML)",
+            data=map_html,
+            file_name=f"peta_pekanbaru_{int(time.time())}.html",
+            mime="text/html",
+            use_container_width=True
+        )
+
 
 # =========================================================================
 # === BAGIAN UTAMA DASHBOARD (TIDAK REFRESH OTOMATIS) =====================
@@ -428,116 +568,33 @@ Tingkat risiko kebakaran sangat tinggi. Intensitas api pada kategori sangat ting
 def main_dashboard():
     st.markdown("<div class='section-title'>Hasil Prediksi Data Realtime</div>", unsafe_allow_html=True)
     
-    # Load data untuk render komponen peta dan tabel secara statis
+    # Load data untuk render komponen bagan dan tabel secara statis
     df_raw = load_data()
     res = preprocess_sensor_data(df_raw)
     
     col_kiri, col_tengah, col_kanan = st.columns([1.2, 1.2, 1.2])
     
     with col_kiri:
-        # Panggil fragment di dalam kolom ini
+        # Panggil fragment metrik kiri
         indikator_kiri_realtime()
         
+    with col_tengah:
+        st.markdown("<h5 style='text-align: center;'>Visualisasi Peta Lokasi Prediksi Kebakaran</h5>", unsafe_allow_html=True)
+        # Panggil fragment peta tengah
+        peta_realtime_fragment()
+
+    with col_kanan:
+        st.markdown("<h5 style='text-align: center;'>IoT Smart Fire Prediction</h5>", unsafe_allow_html=True)
+        try:
+            image = Image.open("forestiot4.jpg")
+            st.image(image.resize((480, 360)))
+        except Exception:
+            st.info("Gambar 'forestiot4.jpg' tidak ditemukan di direktori aplikasi.")
+                
+    # === Eksekusi bagian bawah jika data tersedia ===
     if res[0] is not None and not isinstance(res[0], str):
         df, clean_df, scaled_all, fitur = res
-        last_row = df.iloc[-1]
-        last_num = clean_df.iloc[-1]
-        risk_label = last_row["Prediksi Kebakaran"]
-        
-        with col_tengah:
-            st.markdown("<h5 style='text-align: center;'>Visualisasi Peta Lokasi Prediksi Kebakaran</h5>", unsafe_allow_html=True)
-            
-            # --- MODIFIKASI DIMULAI DI SINI ---
-            
-            # Koordinat pusat Pekanbaru untuk memusatkan peta
-            pekanbaru_coords = [0.5333, 101.4500] 
-            
-            color_map = {
-                "Low / Rendah": "blue",
-                "Moderate / Sedang": "green",
-                "High / Tinggi": "orange",
-                "Very High / Sangat Tinggi": "red"
-            }
-            marker_color = color_map.get(risk_label, "gray")
 
-            # 1. Membaca dan Memfilter File GeoJSON
-            try:
-                with open("Provinsi Riau-KAB_KOTA.geojson", "r") as f:
-                    riau_geojson = json.load(f)
-                
-                # Mengambil hanya fitur/poligon milik Pekanbaru
-                pekanbaru_feature = None
-                for feature in riau_geojson['features']:
-                    nama_wilayah = feature['properties'].get('nama', '').lower()
-                    kab_kota = feature['properties'].get('kab_kota', '').lower()
-                    
-                    if 'pekanbaru' in nama_wilayah or 'pekanbaru' in kab_kota:
-                        pekanbaru_feature = feature
-                        break
-                
-                # Membuat format GeoJSON baru khusus Pekanbaru
-                pekanbaru_geojson = {
-                    "type": "FeatureCollection",
-                    "features": [pekanbaru_feature] if pekanbaru_feature else []
-                }
-            except Exception as e:
-                st.error(f"Gagal memuat file GeoJSON: {e}")
-                pekanbaru_geojson = None
-
-            # 2. Merangkai Teks Popup IoT
-            popup_text = folium.Popup(f"""
-                <div style='width: 230px; font-size: 13px; line-height: 1.5;'>
-                <b>Wilayah:</b> Kota Pekanbaru<br>
-                <b>Prediksi:</b> {risk_label}<br>
-                <b>Suhu:</b> {float(last_num[fitur[0]]):.1f} °C<br>
-                <b>Kelembapan:</b> {float(last_num[fitur[1]]):.1f} %<br>
-                <b>Curah Hujan:</b> {float(last_num[fitur[2]]):.1f} mm<br>
-                <b>Kecepatan Angin:</b> {float(last_num[fitur[3]]):.1f} m/s<br>
-                <b>Kelembaban Tanah:</b> {float(last_num[fitur[4]]):.1f} %<br>
-                <b>Waktu:</b> {last_row['Waktu']}
-                </div>
-            """, max_width=250)
-
-            # 3. Membuat Peta Dasar
-            m = folium.Map(location=pekanbaru_coords, zoom_start=10)
-
-            # 4. Menambahkan Poligon Pekanbaru dengan Warna Dinamis
-            if pekanbaru_geojson and pekanbaru_geojson["features"]:
-                folium.GeoJson(
-                    pekanbaru_geojson,
-                    style_function=lambda feature, color=marker_color: {
-                        'fillColor': color,
-                        'color': color,       
-                        'weight': 2,          
-                        'fillOpacity': 0.4,   
-                    },
-                    tooltip=folium.GeoJsonTooltip(
-                        fields=['nama'],
-                        aliases=['Wilayah:'],
-                        style="font-weight: bold; font-size: 14px;"
-                    )
-                ).add_to(m)
-
-            # 5. Menambahkan Marker Titik Sensor IoT (Koordinat ini bisa disesuaikan dengan titik presisi sensor)
-            folium.Marker(
-                location=pekanbaru_coords,
-                popup=popup_text,
-                icon=folium.Icon(color=marker_color, icon="info-sign")
-            ).add_to(m)
-
-            # 6. Menampilkan ke Streamlit
-            folium_static(m, width=450, height=350)
-            
-            # --- MODIFIKASI BERAKHIR DI SINI ---
-
-        with col_kanan:
-            st.markdown("<h5 style='text-align: center;'>IoT Smart Fire Prediction</h5>", unsafe_allow_html=True)
-            try:
-                image = Image.open("forestiot4.jpg")
-                st.image(image.resize((480, 360)))
-            except Exception:
-                st.info("Gambar 'forestiot4.jpg' tidak ditemukan di direktori aplikasi.")
-                
         # === TABEL TINGKAT RISIKO ===
         st.markdown("<div class='section-title' style='margin-top: 25px;'>Tabel Tingkat Resiko dan Intensitas Kebakaran</div>", unsafe_allow_html=True)
         st.markdown("""
