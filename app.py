@@ -20,10 +20,12 @@ import matplotlib.pyplot as plt
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 
-# === TAMBAHAN LIBRARY UNTUK LOAD DATA ===
+# === TAMBAHAN LIBRARY UNTUK LOAD DATA & WEB KOMPONEN ===
 import requests
 import time
 from io import StringIO, BytesIO
+import base64
+import streamlit.components.v1 as components
 
 # === PAGE CONFIG ===
 st.set_page_config(page_title="Smart Fire Prediction HSEL", page_icon="favicon.ico", layout="wide")
@@ -118,7 +120,6 @@ try:
     vectorizer, model_text = load_text_models()
 except Exception:
     vectorizer, model_text = None, None
-
 
 # === KONFIG GOOGLE SHEET ===
 SHEET_ID = "1ZscUJ6SLPIF33t8ikVHUmR68b-y3Q9_r_p9d2rDRMCM"
@@ -564,8 +565,8 @@ def peta_realtime_fragment():
             </div>
         """, max_width=250)
 
-        # Map Polos Bersih untuk Streamlit & Output HTML
-        m = folium.Map(location=pekanbaru_coords, zoom_start=11, control_scale=True, tiles='OpenStreetMap')
+        # === MODIFIKASI: zoom_start=9.5 agar Peta Lebih Zoom Out ===
+        m = folium.Map(location=pekanbaru_coords, zoom_start=9.5, control_scale=True, tiles='OpenStreetMap')
 
         formatter = "function(num) {return L.Util.formatNum(num, 5) + ' &deg;';};"
         MousePosition(
@@ -587,7 +588,7 @@ def peta_realtime_fragment():
         folium.Marker(location=pekanbaru_coords, popup=popup_text, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m)
 
         # =========================================================================
-        # INJEKSI LAYOUT DASHBOARD PROFESIONAL (DI LUAR FRAME PETA) UNTUK HTML DOWNLOAD
+        # INJEKSI LAYOUT DASHBOARD PROFESIONAL (DI LUAR FRAME PETA) UNTUK HTML
         # =========================================================================
         raw_map_html = m.get_root().render()
 
@@ -655,13 +656,31 @@ def peta_realtime_fragment():
         # Eksekusi tampilan peta polos (tanpa box ngambang) ke layar Streamlit
         folium_static(m, width=450, height=350)
 
-        st.download_button(
-            label="📥 Download Peta Interaktif Berbingkai (HTML)",
-            data=framed_dashboard_html,
-            file_name=f"peta_pekanbaru_{int(time.time())}.html",
-            mime="text/html",
-            use_container_width=True
-        )
+        # === MODIFIKASI: Buka Tab Baru menggantikan download_button ===
+        b64_html = base64.b64encode(framed_dashboard_html.encode('utf-8')).decode('utf-8')
+        
+        custom_button_html = f"""
+        <button onclick="openMap()" style="width: 100%; padding: 8px 16px; background-color: #ffffff; color: #333; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 14px; transition: 0.3s;" onmouseover="this.style.borderColor='#1f77b4'; this.style.color='#1f77b4'" onmouseout="this.style.borderColor='#ccc'; this.style.color='#333'">
+            🌐 Buka Peta Interaktif (Tab Baru)
+        </button>
+        
+        <script>
+        function openMap() {{
+            const b64Data = "{b64_html}";
+            const byteCharacters = atob(b64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {{
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }}
+            const byteArray = new Uint8Array(byteNumbers);
+            
+            const blob = new Blob([byteArray], {{type: 'text/html;charset=utf-8'}});
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+        }}
+        </script>
+        """
+        components.html(custom_button_html, height=50)
 
 
 # =========================================================================
@@ -753,6 +772,17 @@ def main_dashboard():
             with tab_all:
                 df_melted = df_vis.melt(id_vars=['Waktu_DT'], var_name='Parameter Sensor', value_name='Nilai')
                 
+                # === MODIFIKASI: Menambahkan Satuan ke Label Teks Chart Utama ===
+                satuan_map = {
+                    'Suhu (°C)': '°C',
+                    'Kelembapan (%)': '%',
+                    'Curah Hujan (mm)': 'mm',
+                    'Kecepatan Angin (m/s)': 'm/s',
+                    'Kelembaban Tanah (%)': '%'
+                }
+                df_melted['Satuan'] = df_melted['Parameter Sensor'].map(satuan_map)
+                df_melted['LabelText'] = df_melted.apply(lambda row: f"{row['Nilai']:.1f} {row['Satuan']}", axis=1)
+                
                 selection = alt.selection_point(fields=['Parameter Sensor'], bind='legend')
 
                 chart_base = alt.Chart(df_melted).mark_line(strokeWidth=3, interpolate='monotone').encode(
@@ -770,7 +800,8 @@ def main_dashboard():
                 text_labels = chart_base.mark_text(
                     align='center', baseline='bottom', dy=-10, fontSize=11, fontWeight='bold'
                 ).encode(
-                    text=alt.Text('Nilai:Q', format='.1f'), 
+                    # Menggunakan LabelText untuk memunculkan satuan
+                    text=alt.Text('LabelText:N'), 
                     opacity=alt.condition(selection, alt.value(1), alt.value(0))
                 )
 
