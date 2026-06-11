@@ -30,7 +30,7 @@ import streamlit.components.v1 as components
 # === PAGE CONFIG ===
 st.set_page_config(page_title="Smart Fire Prediction HSEL", page_icon="🔥", layout="wide", initial_sidebar_state="expanded")
 
-# === STYLE KUSTOM (Digabungkan dengan Style Profesional) ===
+# === STYLE KUSTOM ===
 st.markdown("""
     <style>
     .main {background-color: #F9F9F9;}
@@ -55,7 +55,7 @@ st.markdown("""
         box-shadow: 2px 4px 10px rgba(0,0,0,0.2) !important;
     }
 
-    /* --- STYLING DASHBOARD PROFESIONAL BARU --- */
+    /* --- STYLING DASHBOARD PROFESIONAL --- */
     .main-header {
         background-color: #1f77b4;
         color: white;
@@ -234,10 +234,115 @@ def preprocess_sensor_data(df):
 
 
 # =========================================================================
-# === BAGIAN DASHBOARD REALTIME (TERPUSAT DALAM SATU FRAGMENT) ============
+# === BAGIAN DASHBOARD REALTIME (DIPISAH MENJADI DUA FRAGMENT) ============
 # =========================================================================
+
+# --- 1. FRAGMENT KHUSUS SIDEBAR ---
 @st.fragment(run_every=7)
-def realtime_top_dashboard():
+def sidebar_realtime_fragment():
+    df_raw = load_data()
+    res = preprocess_sensor_data(df_raw)
+    
+    if res[0] is None or isinstance(res[0], str): return
+        
+    df, clean_df, scaled_all, fitur = res
+    last_row = df.iloc[-1]
+    risk_label = last_row["Prediksi Kebakaran"]
+
+    # Menghitung SHAP (XAI)
+    data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
+    background_data = pd.DataFrame(shap.sample(scaled_all, 50), columns=fitur)
+    explainer = shap.Explainer(model.predict, background_data)
+    shap_values = explainer(data_realtime_scaled)
+    
+    total_abs_shap = sum(abs(v) for v in shap_values[0].values)
+    kontribusi = []
+    for nama_f, shap_v in zip(fitur, shap_values[0].values):
+        pct_f = (abs(float(shap_v)) / total_abs_shap) * 100 if total_abs_shap > 0 else 0.0
+        kontribusi.append({"fitur": nama_f, "shap_val": float(shap_v), "pct": pct_f})
+    kontribusi = sorted(kontribusi, key=lambda x: x["pct"], reverse=True)
+
+    # Render Komponen Sidebar
+    logo_col_left, logo_col_right = st.columns([1, 4])
+    try:
+        with logo_col_left:
+            st.image("logo.png", width=60)
+    except Exception:
+        pass 
+    with logo_col_right:
+        st.markdown(f"**Smart Fire Prediction**\nKota Pekanbaru\n\n*HSEL IoT Model*")
+    st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+
+    # Panel Legenda
+    st.markdown("<div class='panel-frame'>", unsafe_allow_html=True)
+    st.markdown("<span class='panel-header'>Arah Utara & Legenda</span>", unsafe_allow_html=True)
+    col_north, col_legend = st.columns([1, 1.5])
+    with col_north:
+        st.image("https://upload.wikimedia.org/wikipedia/commons/e/e0/Comics_north_arrow.svg", caption="U", width=60)
+    with col_legend:
+        st.markdown(f'<span class="risk-dot risk-rendah"></span> Rendah<br>'
+                    f'<span class="risk-dot risk-sedang"></span> Sedang<br>'
+                    f'<span class="risk-dot risk-tinggi"></span> Tinggi<br>'
+                    f'<span class="risk-dot risk-sangattinggi"></span> Sangat Tinggi', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Panel XAI SHAP Lengkap
+    st.markdown("<div class='panel-frame'>", unsafe_allow_html=True)
+    st.markdown("<span class='panel-header'>Faktor Pemicu (XAI SHAP)</span>", unsafe_allow_html=True)
+    st.markdown(f"<span style='font-size:12px; color:gray; display:block; margin-bottom:10px;'>Grafik kontribusi parameter terhadap status risiko: <b>{risk_label.split('/')[0].strip()}</b></span>", unsafe_allow_html=True)
+    
+    for factor in kontribusi:
+        nama_fitur = str(factor['fitur']).lower()
+        persen = factor['pct']
+        arah = factor['shap_val']
+        
+        # Tentukan Deskripsi dan Warna Berdasarkan Arah (Positif=Bad, Negatif=Good)
+        if arah > 0:
+            indicator_class = "shap-bad"
+            if "tanah" in nama_fitur: desc = "Kelembaban tanah yang rendah menunjukkan kondisi lahan yang teramat kering."
+            elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur: desc = "Udara yang kering mempercepat proses pengeringan bahan bakar."
+            elif "angin" in nama_fitur or "ff" in nama_fitur: desc = "Kecepatan angin saat ini berisiko memperluas area kebakaran."
+            elif "suhu" in nama_fitur or "temperatur" in nama_fitur: desc = "Suhu panas memicu penguapan air dari vegetasi."
+            elif "hujan" in nama_fitur or "rr" in nama_fitur: desc = "Ketiadaan curah hujan menghilangkan faktor pendingin alami."
+            else: desc = "Meningkatkan potensi risiko kebakaran."
+        else:
+            indicator_class = "shap-good"
+            if "tanah" in nama_fitur: desc = "Kelembaban tanah terdeteksi basah, bertindak sebagai tameng alami."
+            elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur: desc = "Kelembapan udara tinggi menjaga kebasahan partikel."
+            elif "angin" in nama_fitur or "ff" in nama_fitur: desc = "Pergerakan angin relatif lambat dan tidak mengancam."
+            elif "suhu" in nama_fitur or "temperatur" in nama_fitur: desc = "Suhu udara sejuk menjaga stabilitas termal."
+            elif "hujan" in nama_fitur or "rr" in nama_fitur: desc = "Curah hujan yang turun merupakan faktor pendingin krusial."
+            else: desc = "Menstabilkan potensi risiko kebakaran."
+
+        simbol_arah = "+" if arah > 0 else "-"
+        st.markdown(f"""
+            <div class="shap-factor-row">
+                <div class="shap-dot-small {indicator_class}"></div>
+                <div class="shap-factor-details">
+                    <p><span class="shap-factor-title">{factor['fitur']}</span> <span class="shap-factor-contribution">({simbol_arah}{persen:.1f}%)</span></p>
+                    <p class="shap-factor-desc">{desc}</p>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Panel Tindak Lanjut
+    st.markdown("<div class='panel-frame'>", unsafe_allow_html=True)
+    st.markdown("<span class='panel-header'>Tindak Lanjut Instansi</span>", unsafe_allow_html=True)
+    if risk_label == "Low / Rendah":
+        st.markdown("<ul style='padding-left: 20px; font-size:13px;'><li>Monitoring rutin kondisi lingkungan</li><li>Patroli berkala ringan</li><li>Edukasi preventif kepada masyarakat</li><li>Dokumentasi dan pelaporan kondisi normal</li></ul>", unsafe_allow_html=True)
+    elif risk_label == "Moderate / Sedang":
+        st.markdown("<ul style='padding-left: 20px; font-size:13px;'><li>Peningkatan frekuensi patroli</li><li>Penyampaian peringatan dini terbatas</li><li>Koordinasi internal BPBD dan aparat desa</li><li>Pengawasan aktivitas pembakaran terbuka</li></ul>", unsafe_allow_html=True)
+    elif risk_label == "High / Tinggi":
+        st.markdown("<ul style='padding-left: 20px; font-size:13px;'><li>Aktivasi pos siaga tingkat lokal</li><li>Penempatan personel siaga di titik rawan</li><li>Koordinasi dengan TNI/Polri dan Manggala Agni</li><li>Peringatan dini terbuka kepada masyarakat</li><li>Penyiapan peralatan pemadaman awal</li></ul>", unsafe_allow_html=True)
+    else:
+        st.markdown("<ul style='padding-left: 20px; font-size:13px;'><li>Penetapan status siaga darurat tingkat lokal</li><li>Aktivasi penuh posko tanggap darurat</li><li>Mobilisasi tim pemantauan dan pemadam</li><li>Koordinasi lintas sektor</li><li>Penyebaran peringatan dini</li><li>Pengetatan larangan pembakaran terbuka</li></ul>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# --- 2. FRAGMENT KHUSUS KONTEN UTAMA (PETA & IoT) ---
+@st.fragment(run_every=7)
+def realtime_main_dashboard():
     df_raw = load_data()
     res = preprocess_sensor_data(df_raw)
     
@@ -252,102 +357,9 @@ def realtime_top_dashboard():
     last_row = df.iloc[-1]
     last_num = clean_df.iloc[-1]
     risk_label = last_row["Prediksi Kebakaran"]
-    waktu_valid = str(last_row['Waktu']) # Menarik Waktu Asli dari Sensor
-
-    # --- HITUNG SHAP (XAI) SEKALI UNTUK FRAME & SIDEBAR ---
-    data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
-    background_data = pd.DataFrame(shap.sample(scaled_all, 50), columns=fitur)
-    explainer = shap.Explainer(model.predict, background_data)
-    shap_values = explainer(data_realtime_scaled)
+    waktu_valid = str(last_row['Waktu'])
     
-    total_abs_shap = sum(abs(v) for v in shap_values[0].values)
-    kontribusi = []
-    for nama_f, shap_v in zip(fitur, shap_values[0].values):
-        pct_f = (abs(float(shap_v)) / total_abs_shap) * 100 if total_abs_shap > 0 else 0.0
-        kontribusi.append({"fitur": nama_f, "shap_val": float(shap_v), "pct": pct_f})
-    kontribusi = sorted(kontribusi, key=lambda x: x["pct"], reverse=True)
-
-    # ================= FRAME 1: SIDEBAR =================
-    with st.sidebar:
-        # Logo dan Header Sidebar
-        logo_col_left, logo_col_right = st.columns([1, 4])
-        try:
-            with logo_col_left:
-                st.image("logo.png", width=60)
-        except Exception:
-            pass 
-        with logo_col_right:
-            st.markdown(f"**Smart Fire Prediction**\nKota Pekanbaru\n\n*HSEL IoT Model*")
-        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
-
-        # Panel Legenda
-        st.markdown("<div class='panel-frame'>", unsafe_allow_html=True)
-        st.markdown("<span class='panel-header'>Arah Utara & Legenda</span>", unsafe_allow_html=True)
-        col_north, col_legend = st.columns([1, 1.5])
-        with col_north:
-            st.image("https://upload.wikimedia.org/wikipedia/commons/e/e0/Comics_north_arrow.svg", caption="U", width=60)
-        with col_legend:
-            st.markdown(f'<span class="risk-dot risk-rendah"></span> Rendah<br>'
-                        f'<span class="risk-dot risk-sedang"></span> Sedang<br>'
-                        f'<span class="risk-dot risk-tinggi"></span> Tinggi<br>'
-                        f'<span class="risk-dot risk-sangattinggi"></span> Sangat Tinggi', unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Panel XAI SHAP Lengkap
-        st.markdown("<div class='panel-frame'>", unsafe_allow_html=True)
-        st.markdown("<span class='panel-header'>Faktor Pemicu (XAI SHAP)</span>", unsafe_allow_html=True)
-        st.markdown(f"<span style='font-size:12px; color:gray; display:block; margin-bottom:10px;'>Grafik kontribusi parameter terhadap status risiko: <b>{risk_label.split('/')[0].strip()}</b></span>", unsafe_allow_html=True)
-        
-        for factor in kontribusi:
-            nama_fitur = str(factor['fitur']).lower()
-            persen = factor['pct']
-            arah = factor['shap_val']
-            
-            # Tentukan Deskripsi dan Warna Berdasarkan Arah (Positif=Bad, Negatif=Good)
-            if arah > 0:
-                indicator_class = "shap-bad"
-                if "tanah" in nama_fitur: desc = "Kelembaban tanah yang rendah menunjukkan kondisi lahan yang teramat kering."
-                elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur: desc = "Udara yang kering mempercepat proses pengeringan bahan bakar."
-                elif "angin" in nama_fitur or "ff" in nama_fitur: desc = "Kecepatan angin saat ini berisiko memperluas area kebakaran."
-                elif "suhu" in nama_fitur or "temperatur" in nama_fitur: desc = "Suhu panas memicu penguapan air dari vegetasi."
-                elif "hujan" in nama_fitur or "rr" in nama_fitur: desc = "Ketiadaan curah hujan menghilangkan faktor pendingin alami."
-                else: desc = "Meningkatkan potensi risiko kebakaran."
-            else:
-                indicator_class = "shap-good"
-                if "tanah" in nama_fitur: desc = "Kelembaban tanah terdeteksi basah, bertindak sebagai tameng alami."
-                elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur: desc = "Kelembapan udara tinggi menjaga kebasahan partikel."
-                elif "angin" in nama_fitur or "ff" in nama_fitur: desc = "Pergerakan angin relatif lambat dan tidak mengancam."
-                elif "suhu" in nama_fitur or "temperatur" in nama_fitur: desc = "Suhu udara sejuk menjaga stabilitas termal."
-                elif "hujan" in nama_fitur or "rr" in nama_fitur: desc = "Curah hujan yang turun merupakan faktor pendingin krusial."
-                else: desc = "Menstabilkan potensi risiko kebakaran."
-
-            simbol_arah = "+" if arah > 0 else "-"
-            st.markdown(f"""
-                <div class="shap-factor-row">
-                    <div class="shap-dot-small {indicator_class}"></div>
-                    <div class="shap-factor-details">
-                        <p><span class="shap-factor-title">{factor['fitur']}</span> <span class="shap-factor-contribution">({simbol_arah}{persen:.1f}%)</span></p>
-                        <p class="shap-factor-desc">{desc}</p>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Panel Tindak Lanjut
-        st.markdown("<div class='panel-frame'>", unsafe_allow_html=True)
-        st.markdown("<span class='panel-header'>Tindak Lanjut Instansi</span>", unsafe_allow_html=True)
-        if risk_label == "Low / Rendah":
-            st.markdown("<ul style='padding-left: 20px; font-size:13px;'><li>Monitoring rutin kondisi lingkungan</li><li>Patroli berkala ringan</li><li>Edukasi preventif kepada masyarakat</li><li>Dokumentasi dan pelaporan kondisi normal</li></ul>", unsafe_allow_html=True)
-        elif risk_label == "Moderate / Sedang":
-            st.markdown("<ul style='padding-left: 20px; font-size:13px;'><li>Peningkatan frekuensi patroli</li><li>Penyampaian peringatan dini terbatas</li><li>Koordinasi internal BPBD dan aparat desa</li><li>Pengawasan aktivitas pembakaran terbuka</li></ul>", unsafe_allow_html=True)
-        elif risk_label == "High / Tinggi":
-            st.markdown("<ul style='padding-left: 20px; font-size:13px;'><li>Aktivasi pos siaga tingkat lokal</li><li>Penempatan personel siaga di titik rawan</li><li>Koordinasi dengan TNI/Polri dan Manggala Agni</li><li>Peringatan dini terbuka kepada masyarakat</li><li>Penyiapan peralatan pemadaman awal</li></ul>", unsafe_allow_html=True)
-        else:
-            st.markdown("<ul style='padding-left: 20px; font-size:13px;'><li>Penetapan status siaga darurat tingkat lokal</li><li>Aktivasi penuh posko tanggap darurat</li><li>Mobilisasi tim pemantauan dan pemadam</li><li>Koordinasi lintas sektor</li><li>Penyebaran peringatan dini</li><li>Pengetatan larangan pembakaran terbuka</li></ul>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    
-    # ================= HEADER & KOLOM UTAMA =================
+    # Header Banner Tengah
     st.markdown(f"""
     <div class="main-header">
         <h1>Dashboard Prediksi Risiko Kebakaran Lahan</h1>
@@ -357,7 +369,7 @@ def realtime_top_dashboard():
 
     body_col_main, body_col_produced = st.columns([4, 1.2])
 
-    # ================= FRAME 2: PETA INTERAKTIF =================
+    # --- Frame Kiri (Peta) ---
     with body_col_main:
         st.markdown("<div style='text-align: center; margin-bottom: 10px; font-weight: bold;'>Visualisasi Peta Lokasi Prediksi Kebakaran</div>", unsafe_allow_html=True)
         
@@ -451,7 +463,7 @@ def realtime_top_dashboard():
         """
         components.html(custom_button_html, height=50)
 
-    # ================= FRAME 3: IoT & METADATA =================
+    # --- Frame Kanan (IoT & Info) ---
     with body_col_produced:
         st.markdown("<div style='text-align: center; margin-bottom: 10px; font-weight: bold;'>IoT Smart Fire Prediction</div>", unsafe_allow_html=True)
         try:
@@ -475,13 +487,17 @@ def realtime_top_dashboard():
 
 
 # =========================================================================
-# === BAGIAN UTAMA APLIKASI ===============================================
+# === BAGIAN UTAMA APLIKASI (PENGGABUNGAN) ================================
 # =========================================================================
 def main_dashboard():
-    # Render UI Dashboard Realtime di atas
-    realtime_top_dashboard()
+    # 1. Jalankan fragment untuk area Sidebar
+    with st.sidebar:
+        sidebar_realtime_fragment()
     
-    # Load Data untuk Chart & Tabel bagian bawah
+    # 2. Jalankan fragment untuk area Utama (Peta & IoT)
+    realtime_main_dashboard()
+    
+    # --- BAGIAN BAWAH STATIS (Tabel & Chart Tren) ---
     df_raw = load_data()
     res = preprocess_sensor_data(df_raw)
     
@@ -594,6 +610,7 @@ def main_dashboard():
             data=df_xlsx, file_name="hasil_prediksi_kebakaran.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+# Panggil fungsi dashboard utama yang menyatukan semuanya
 main_dashboard()
 
 
