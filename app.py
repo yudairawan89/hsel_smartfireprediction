@@ -11,7 +11,6 @@ import altair as alt
 
 # === TAMBAHAN LIBRARY UNTUK BACA GEOJSON & KOMPONEN PETA ===
 import json
-from branca.element import Template, MacroElement
 
 # === TAMBAHAN LIBRARY UNTUK XAI ===
 import shap
@@ -46,7 +45,7 @@ st.markdown("""
     }
     .scrollable-table { overflow-x: auto; }
     
-    /* Frame khusus untuk iframe Folium agar terlihat seperti Peta GIS Statis */
+    /* Frame khusus untuk iframe Folium agar terlihat seperti Peta GIS Statis di Streamlit */
     iframe[title="folium_static"] {
         border: 4px solid #444 !important;
         border-radius: 4px !important;
@@ -86,7 +85,7 @@ risk_styles = {
     "Very High / Sangat Tinggi": ("white", "red")
 }
 
-# === LOAD MODEL, SCALER, SASTRAWI, DAN TEKS MODEL ===
+# === LOAD MODEL, SCALER, SASTRAWI, DAN TEKS MODEL SECARA GLOBAL ===
 @st.cache_resource
 def load_model():
     return joblib.load("HSEL_IoT_Model.joblib")
@@ -109,15 +108,17 @@ def load_text_models():
     mdl = joblib.load("stacking_text_model.joblib")
     return vec, mdl
 
+# Eksekusi instansiasi model
 model = load_model()
 scaler = load_scaler()
 stopword_remover, stemmer = load_sastrawi()
 
-# Eksekusi load teks model secara global agar aman dari Error NameReference
+# Penanganan Error Model Teks
 try:
     vectorizer, model_text = load_text_models()
 except Exception:
     vectorizer, model_text = None, None
+
 
 # === KONFIG GOOGLE SHEET ===
 SHEET_ID = "1ZscUJ6SLPIF33t8ikVHUmR68b-y3Q9_r_p9d2rDRMCM"
@@ -129,7 +130,6 @@ def load_data():
     try:
         url_no_cache = f"{SHEET_CSV_LINK}&t={int(time.time())}"
         response = requests.get(url_no_cache, timeout=5)
-        
         if response.status_code == 200:
             return pd.read_csv(StringIO(response.text))
         else:
@@ -449,7 +449,7 @@ def peta_realtime_fragment():
         }
         marker_color = color_map.get(risk_label, "gray")
 
-        # 1. GENERATE KONTEN XAI UNTUK MAP
+        # 1. GENERATE KONTEN XAI UNTUK DASHBOARD DOWNLOAD
         xai_html = ""
         try:
             data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
@@ -494,7 +494,7 @@ def peta_realtime_fragment():
                 br_col = "#ff4b4b" if arah > 0 else "#21c354"
                 
                 xai_html += f"""
-                <div style='margin-bottom: 6px; padding: 4px; background: {bg_col}; border-left: 3px solid {br_col};'>
+                <div style='margin-bottom: 6px; padding: 6px; background: {bg_col}; border-left: 3px solid {br_col}; border-radius: 0 4px 4px 0;'>
                     <b style='color:#333; font-size:12px;'>{icon} {factor['fitur'].title()} ({persen:.1f}%)</b><br>
                     <span style='color:#555; font-size:11px;'>{desc}</span>
                 </div>
@@ -502,7 +502,7 @@ def peta_realtime_fragment():
         except Exception:
             xai_html = "<i>Data XAI belum siap dimuat.</i>"
 
-        # 2. GENERATE TINDAK LANJUT UNTUK MAP (VERSI LENGKAP)
+        # 2. GENERATE TINDAK LANJUT UNTUK DASHBOARD DOWNLOAD
         if risk_label == "Low / Rendah":
             tl_html = """<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'>
                 <li>Monitoring rutin kondisi lingkungan</li>
@@ -564,23 +564,15 @@ def peta_realtime_fragment():
             </div>
         """, max_width=250)
 
-        # Inisiasi Map dengan style Default bawaan Folium (OpenStreetMap) dan Scale Bar
-        m = folium.Map(location=pekanbaru_coords, zoom_start=11, control_scale=True)
+        # Map Polos Bersih untuk Streamlit & Output HTML
+        m = folium.Map(location=pekanbaru_coords, zoom_start=11, control_scale=True, tiles='OpenStreetMap')
 
-        # Menambahkan Widget Koordinat Melayang (Khas GIS)
         formatter = "function(num) {return L.Util.formatNum(num, 5) + ' &deg;';};"
         MousePosition(
-            position="bottomleft",
-            separator=" | ",
-            empty_string="Koordinat tidak tersedia",
-            lng_first=True,
-            num_digits=20,
-            prefix="Posisi:",
-            lat_formatter=formatter,
-            lng_formatter=formatter,
+            position="bottomleft", separator=" | ", empty_string="Koordinat tidak tersedia",
+            lng_first=True, num_digits=20, prefix="Posisi:", lat_formatter=formatter, lng_formatter=formatter,
         ).add_to(m)
         
-        # Menambahkan Tombol Fullscreen
         Fullscreen(position='topright').add_to(m)
 
         if pekanbaru_geojson and pekanbaru_geojson["features"]:
@@ -594,137 +586,78 @@ def peta_realtime_fragment():
 
         folium.Marker(location=pekanbaru_coords, popup=popup_text, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m)
 
-        # 4. MEMBUAT LAYOUT MACROELEMENT (PANEL XAI, JUDUL, LEGENDA, NORTH ARROW)
-        layout_html_template = f"""
-        {{% macro html(this, kwargs) %}}
-        <style>
-            #xai-toggle {{ display: none; }}
-            .xai-panel {{
-                position: absolute; /* diubah dari fixed menjadi absolute agar menyatu dengan div framing di hasil download */
-                top: 10px;
-                left: 10px;
-                background-color: rgba(255, 255, 255, 0.95);
-                border: 2px solid grey;
-                border-radius: 5px;
-                z-index: 9999;
-                font-family: Arial, sans-serif;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-                width: 300px;
-                max-height: 90vh;
-                overflow-y: auto;
-                transition: all 0.3s ease;
-            }}
-            .xai-header {{
-                background-color: #1f77b4;
-                color: white;
-                padding: 10px;
-                margin: 0;
-                font-size: 13px;
-                font-weight: bold;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                cursor: pointer;
-            }}
-            .xai-content {{
-                padding: 12px;
-                font-size: 12px;
-                line-height: 1.4;
-            }}
-            #xai-toggle:not(:checked) ~ .xai-panel .xai-content {{ display: none; }}
-            #xai-toggle:not(:checked) ~ .xai-panel {{ width: auto; border-bottom: none; }}
-            
-            /* Komponen melayang lainnya */
-            .box-judul {{
-                position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background-color: rgba(255, 255, 255, 0.9); border: 2px solid grey; border-radius: 5px; padding: 10px 20px; font-size: 14px; font-family: Arial, sans-serif; font-weight: bold; text-align: center; z-index: 9999; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-            }}
-            .box-legenda {{
-                position: absolute; bottom: 30px; right: 30px; background-color: rgba(255, 255, 255, 0.9); border: 2px solid grey; border-radius: 5px; padding: 15px; font-size: 12px; font-family: Arial, sans-serif; z-index: 9999; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); line-height: 1.5;
-            }}
-            .box-arah {{
-                position: absolute; top: 60px; right: 20px; z-index: 9999; background-color: rgba(255, 255, 255, 0.9); padding: 5px; border: 2px solid grey; border-radius: 5px; text-align: center; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-            }}
-        </style>
-
-        <input type="checkbox" id="xai-toggle">
-        <div class="xai-panel">
-            <label for="xai-toggle" class="xai-header" title="Klik untuk melipat/membuka panel">
-                <span>⚙️ Analisis XAI & Tindak Lanjut</span>
-                <span style="margin-left: 15px; font-size:16px;">↕️</span>
-            </label>
-            <div class="xai-content">
-                <div style="margin-bottom: 12px; border-bottom: 1px solid #ccc; padding-bottom: 8px;">
-                    <b style="font-size: 13px; color: #333;">Status Keseluruhan:</b><br>
-                    <span style="color: {marker_color}; font-size: 16px; font-weight: bold;">{risk_label}</span>
-                </div>
-                
-                <div style="margin-bottom: 12px;">
-                    <b style="font-size: 13px; color: #333;">Faktor Pemicu (SHAP):</b><br>
-                    <div style="margin-top: 5px;">
-                        {xai_html}
-                    </div>
-                </div>
-                
-                <div style="border-top: 1px solid #ccc; padding-top: 8px;">
-                    <b style="font-size: 13px; color: #333;">Tindak Lanjut Instansi:</b>
-                    {tl_html}
-                </div>
-            </div>
-        </div>
-
-        <div class="box-judul">
-            Peta Prediksi Risiko Kebakaran Lahan<br>
-            <span style="font-size:12px; font-weight:normal;">Wilayah Administratif Kota Pekanbaru</span>
-        </div>
-        
-        <div class="box-legenda">
-            <b style="margin-bottom:8px; display:block; font-size:13px;">Tingkat Risiko</b>
-            <i style="background: blue; width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 3px; border-radius: 50%;"></i> Rendah<br>
-            <div style="clear: both; margin-bottom: 4px;"></div>
-            <i style="background: green; width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 3px; border-radius: 50%;"></i> Sedang<br>
-            <div style="clear: both; margin-bottom: 4px;"></div>
-            <i style="background: orange; width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 3px; border-radius: 50%;"></i> Tinggi<br>
-            <div style="clear: both; margin-bottom: 4px;"></div>
-            <i style="background: red; width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 3px; border-radius: 50%;"></i> Sangat Tinggi
-        </div>
-        
-        <div class="box-arah">
-            <div style="font-weight: bold; font-family: Arial, sans-serif; font-size: 14px; color: #333; margin-bottom: 2px;">U</div>
-            <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 16px solid red; margin: 0 auto;"></div>
-            <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 16px solid #555; margin: 0 auto;"></div>
-        </div>
-        {{% endmacro %}}
-        """
-        
-        macro = MacroElement()
-        macro._template = Template(layout_html_template)
-        m.get_root().add_child(macro)
-
+        # =========================================================================
+        # INJEKSI LAYOUT DASHBOARD PROFESIONAL (DI LUAR FRAME PETA) UNTUK HTML DOWNLOAD
+        # =========================================================================
         raw_map_html = m.get_root().render()
 
-        # Eksekusi untuk menampilkan peta ke antarmuka Streamlit
-        folium_static(m, width=450, height=350)
-
-        # ====== INJEKSI CSS WRAPPER AGAR DOWNLOAD HTML JADI BERBINGKAI ======
-        framed_html = raw_map_html.replace(
-            '<body>',
-            '''<body style="background-color: #eef2f5; font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0;">
-            <div style="background-color: white; padding: 25px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); width: 100%; max-width: 950px; height: 85vh; display: flex; flex-direction: column;">
-                <div style="background-color: #1f77b4; color: white; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 18px; margin-bottom: 20px; text-align: center;">
-                    Hasil Prediksi Pemetaan Peta Interaktif
+        # HTML Layout yang membentuk Struktur Dashboard Split Screen
+        custom_css_and_layout_start = f"""
+        <body style="background-color: #eef2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 25px; display: flex; justify-content: center; align-items: center; min-height: 100vh; box-sizing: border-box;">
+            <div style="background-color: white; padding: 25px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); width: 100%; max-width: 1300px; height: 90vh; display: flex; flex-direction: column;">
+                
+                <div style="background-color: #1f77b4; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; flex-shrink: 0;">
+                    <h2 style="margin: 0; font-size: 22px;">Dashboard Prediksi Risiko Kebakaran Lahan</h2>
+                    <p style="margin: 5px 0 0 0; font-size: 14px; font-weight: normal; color: #dceefb;">Wilayah Administratif Kota Pekanbaru</p>
                 </div>
-                <div style="flex-grow: 1; border: 3px solid #555; border-radius: 8px; overflow: hidden; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.1);">
-            '''
-        ).replace(
-            '</body>',
-            '''</div>
-            </div>
-            </body>'''
-        )
+                
+                <div style="display: flex; gap: 20px; flex-grow: 1; height: calc(100% - 90px); overflow: hidden;">
+                    
+                    <div style="width: 340px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px; flex-shrink: 0;">
+                        
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                            <b style="font-size: 14px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 10px;">Status Prediksi Saat Ini</b>
+                            <div style="font-size: 18px; font-weight: bold; color: {marker_color};">{risk_label}</div>
+                        </div>
+
+                        <div style="display: flex; gap: 15px;">
+                            <div style="flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                                <b style="font-size: 13px; color: #333; display: block; margin-bottom: 10px; width: 100%; text-align: left; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Arah Utara</b>
+                                <div style="text-align: center;">
+                                    <div style="font-weight: bold; font-size: 16px; color: #333; margin-bottom: 3px;">U</div>
+                                    <div style="width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 20px solid red; margin: 0 auto;"></div>
+                                    <div style="width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 20px solid #555; margin: 0 auto;"></div>
+                                </div>
+                            </div>
+                            <div style="flex: 1.5; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                                <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 8px;">Legenda Risiko</b>
+                                <div style="font-size: 12px; line-height: 1.8;">
+                                    <div><i style="background: blue; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 6px;"></i> Rendah</div>
+                                    <div><i style="background: green; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 6px;"></i> Sedang</div>
+                                    <div><i style="background: orange; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 6px;"></i> Tinggi</div>
+                                    <div><i style="background: red; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 6px;"></i> Sangat Tinggi</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                            <b style="font-size: 14px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 10px;">Faktor Pemicu (XAI SHAP)</b>
+                            <div style="font-size: 12px;">{xai_html}</div>
+                        </div>
+
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                            <b style="font-size: 14px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 5px;">Tindak Lanjut Instansi</b>
+                            <div style="font-size: 12px; line-height: 1.5;">{tl_html}</div>
+                        </div>
+
+                    </div>
+                    
+                    <div style="flex-grow: 1; border: 3px solid #555; border-radius: 8px; overflow: hidden; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.1);">
+                        """
+        
+        custom_layout_end = """
+                    </div> </div> </div> </body>
+        """
+        
+        # Mengekstrak HTML dan menginjeksi Custom Layout HTML agar komponen berada di LUAR peta
+        framed_dashboard_html = raw_map_html.replace('<body>', custom_css_and_layout_start).replace('</body>', custom_layout_end)
+
+        # Eksekusi tampilan peta polos (tanpa box ngambang) ke layar Streamlit
+        folium_static(m, width=450, height=350)
 
         st.download_button(
             label="📥 Download Peta Interaktif Berbingkai (HTML)",
-            data=framed_html,
+            data=framed_dashboard_html,
             file_name=f"peta_pekanbaru_{int(time.time())}.html",
             mime="text/html",
             use_container_width=True
@@ -906,7 +839,7 @@ main_dashboard()
 # =========================================================================
 # === BAGIAN PENGUJIAN MANUAL & TEKS DENGAN FRAGMENT KHUSUS ===============
 # =========================================================================
-# Manajemen state input manual dengan bind ke widget "key" agar reset tanpa refresh keseluruhan halaman
+# State management bebas reload/refresh menggunakan key-binding dan on_click callback
 if "man_suhu" not in st.session_state: st.session_state.man_suhu = 30.0
 if "man_kel" not in st.session_state: st.session_state.man_kel = 65.0
 if "man_curah" not in st.session_state: st.session_state.man_curah = 10.0
@@ -961,7 +894,7 @@ def manual_prediction_ui():
             f"Prediksi Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True
         )
 
-# Manajemen state input teks
+# State management untuk Prediksi Teks bebas reload
 if "txt_input" not in st.session_state: st.session_state.txt_input = ""
 if "txt_result" not in st.session_state: st.session_state.txt_result = None
 if "txt_preprocessing" not in st.session_state: st.session_state.txt_preprocessing = {}
@@ -971,6 +904,55 @@ def reset_text():
     st.session_state.txt_result = None
     st.session_state.txt_preprocessing = {}
 
+def do_predict_text():
+    if st.session_state.txt_input.strip() == "":
+        st.warning("Harap masukkan deskripsi teks terlebih dahulu.")
+    elif vectorizer is None or model_text is None:
+        st.error("Model teks gagal dimuat. Pastikan file 'tfidf_vectorizer.joblib' dan 'stacking_text_model.joblib' berada di direktori aplikasi.")
+    else:
+        try:
+            raw_text = st.session_state.txt_input
+            text_lower = raw_text.lower()
+            text_clean = re.sub(r'[^a-zA-Z\s]', '', text_lower)
+            text_stopword = stopword_remover.remove(text_clean)
+            tokens = text_stopword.split()
+            token_display = "[" + ", ".join(tokens) + "]"
+            text_stemmed = stemmer.stem(" ".join(tokens))
+
+            X_trans = vectorizer.transform([text_stemmed])
+            feature_names = vectorizer.get_feature_names_out()
+            dense_vector = X_trans.todense().tolist()[0]
+
+            tfidf_details = [{"Kata (Term)": word, "Skor TF-IDF": round(score, 4)}
+                             for word, score in zip(feature_names, dense_vector) if score > 0]
+            tfidf_details = sorted(tfidf_details, key=lambda x: x["Skor TF-IDF"], reverse=True)
+            df_tfidf = pd.DataFrame(tfidf_details)
+
+            prob_dict = {}
+            try:
+                proba = model_text.predict_proba(X_trans)[0]
+                prob_dict = {
+                    "Low / Rendah": proba[0],
+                    "Moderate / Sedang": proba[1],
+                    "High / Tinggi": proba[2],
+                    "Very High / Sangat Tinggi": proba[3]
+                }
+            except Exception:
+                pass
+
+            pred = model_text.predict(X_trans)[0]
+            label_text = convert_to_label(pred)
+
+            st.session_state.txt_preprocessing = {
+                "raw": raw_text, "case_folding": text_lower, "cleansing": text_clean,
+                "stopword": text_stopword, "tokenizing": token_display, "stemming": text_stemmed,
+                "tfidf_df": df_tfidf, "prob_dict": prob_dict
+            }
+            st.session_state.txt_result = label_text
+
+        except Exception as e:
+            st.error(f"Terjadi kesalahan saat memproses input teks: {e}")
+
 @st.fragment
 def text_prediction_ui():
     st.markdown("<div class='section-title' style='margin-top: 20px;'>Pengujian Menggunakan Data Teks</div>", unsafe_allow_html=True)
@@ -978,59 +960,11 @@ def text_prediction_ui():
     st.text_area("Masukkan deskripsi lingkungan:", key="txt_input", height=120)
 
     btn_pred_text, btn_reset_text, _ = st.columns([1, 1, 8])
+    with btn_pred_text:
+        st.button("🔍 Prediksi Teks", on_click=do_predict_text)
     with btn_reset_text:
         st.button("🧼 Reset Teks", on_click=reset_text)
         
-    with btn_pred_text:
-        if st.button("🔍 Prediksi Teks"):
-            if st.session_state.txt_input.strip() == "":
-                st.warning("Harap masukkan deskripsi teks terlebih dahulu.")
-            elif vectorizer is None or model_text is None:
-                st.error("Model teks gagal dimuat. Pastikan file 'tfidf_vectorizer.joblib' dan 'stacking_text_model.joblib' berada di direktori aplikasi.")
-            else:
-                try:
-                    raw_text = st.session_state.txt_input
-                    text_lower = raw_text.lower()
-                    text_clean = re.sub(r'[^a-zA-Z\s]', '', text_lower)
-                    text_stopword = stopword_remover.remove(text_clean)
-                    tokens = text_stopword.split()
-                    token_display = "[" + ", ".join(tokens) + "]"
-                    text_stemmed = stemmer.stem(" ".join(tokens))
-
-                    X_trans = vectorizer.transform([text_stemmed])
-                    feature_names = vectorizer.get_feature_names_out()
-                    dense_vector = X_trans.todense().tolist()[0]
-
-                    tfidf_details = [{"Kata (Term)": word, "Skor TF-IDF": round(score, 4)}
-                                     for word, score in zip(feature_names, dense_vector) if score > 0]
-                    tfidf_details = sorted(tfidf_details, key=lambda x: x["Skor TF-IDF"], reverse=True)
-                    df_tfidf = pd.DataFrame(tfidf_details)
-
-                    prob_dict = {}
-                    try:
-                        proba = model_text.predict_proba(X_trans)[0]
-                        prob_dict = {
-                            "Low / Rendah": proba[0],
-                            "Moderate / Sedang": proba[1],
-                            "High / Tinggi": proba[2],
-                            "Very High / Sangat Tinggi": proba[3]
-                        }
-                    except Exception:
-                        pass
-
-                    pred = model_text.predict(X_trans)[0]
-                    label_text = convert_to_label(pred)
-
-                    st.session_state.txt_preprocessing = {
-                        "raw": raw_text, "case_folding": text_lower, "cleansing": text_clean,
-                        "stopword": text_stopword, "tokenizing": token_display, "stemming": text_stemmed,
-                        "tfidf_df": df_tfidf, "prob_dict": prob_dict
-                    }
-                    st.session_state.txt_result = label_text
-
-                except Exception as e:
-                    st.error(f"Terjadi kesalahan saat memproses input teks: {e}")
-
     if st.session_state.txt_result:
         with st.expander("🛠️ Klik untuk melihat hasil setiap tahapan Pre-processing & Keputusan Model", expanded=False):
             steps = st.session_state.txt_preprocessing
