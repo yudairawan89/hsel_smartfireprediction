@@ -466,7 +466,7 @@ def peta_realtime_fragment():
         }
         marker_color = color_map.get(risk_label, "gray")
 
-        # 1. GENERATE KONTEN XAI UNTUK DASHBOARD DOWNLOAD (TAMPIL SEMUA SESUAI HALAMAN UTAMA)
+        # 1. GENERATE KONTEN XAI UNTUK DASHBOARD DOWNLOAD
         xai_html = ""
         try:
             data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
@@ -606,21 +606,34 @@ def peta_realtime_fragment():
 
         folium.Marker(location=pekanbaru_coords, popup=popup_text, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m)
 
-        # Encode Logo Image to Base64 to render offline/in-blob HTML safely
+        # Encode Logo Image and IoT Image to Base64 to render offline HTML safely
         logo_base64 = ""
+        iot_img_base64 = ""
         try:
             if os.path.exists("logo.png"):
                 with open("logo.png", "rb") as image_file:
-                    encoded_string = base64.b64encode(image_file.read()).decode()
-                    logo_base64 = f"data:image/png;base64,{encoded_string}"
+                    logo_base64 = f"data:image/png;base64,{base64.b64encode(image_file.read()).decode()}"
+                    
+            if os.path.exists("forestiot4.jpg"):
+                with open("forestiot4.jpg", "rb") as iot_file:
+                    iot_img_base64 = f"data:image/jpeg;base64,{base64.b64encode(iot_file.read()).decode()}"
         except Exception:
             pass
             
         logo_img_tag = f'<img src="{logo_base64}" style="height: 55px; background: white; padding: 4px; border-radius: 4px;" alt="Logo">' if logo_base64 else ''
+        
+        # Buat tag image untuk perangkat IoT jika ada, jika tidak ada tampilkan kotak placeholder
+        if iot_img_base64:
+            iot_img_html = f"""
+            <div style="margin-top: 15px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 1px solid #ddd; background: #fff;">
+                <img src="{iot_img_base64}" style="width: 100%; display: block; object-fit: cover;" alt="Visualisasi Perangkat IoT">
+            </div>
+            """
+        else:
+            iot_img_html = "" # Tidak menampilkan apa-apa jika file tidak ditemukan
 
         # =========================================================================
         # INJEKSI LAYOUT DASHBOARD PROFESIONAL (DI LUAR FRAME PETA) UNTUK HTML
-        # MENGGUNAKAN LAYOUT 3 KOLOM / FRAME
         # =========================================================================
         raw_map_html = m.get_root().render()
 
@@ -675,6 +688,8 @@ def peta_realtime_fragment():
                             <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 5px;">Tindak Lanjut Instansi</b>
                             <div style="font-size: 12px; line-height: 1.5;">{tl_html}</div>
                         </div>
+                        
+                        {iot_img_html}
 
                     </div>
                     
