@@ -209,7 +209,8 @@ def indikator_kiri_realtime():
     if res[0] is None:
         st.warning("Data belum tersedia atau gagal dimuat dari Google Sheets.")
         return
-    if res[0] == "error":
+    # PERBAIKAN: Pastikan res[0] adalah string sebelum dibandingkan dengan "error"
+    if isinstance(res[0], str) and res[0] == "error":
         st.error("Kolom wajib tidak ditemukan di Sheets: " + ", ".join(res[1]))
         return
         
@@ -437,7 +438,8 @@ def main_dashboard():
         # Panggil fragment di dalam kolom ini
         indikator_kiri_realtime()
         
-    if res[0] is not None and res[0] != "error":
+    # PERBAIKAN: Pastikan res[0] bukan string sebelum di-unpack menjadi DataFrame
+    if res[0] is not None and not isinstance(res[0], str):
         df, clean_df, scaled_all, fitur = res
         last_row = df.iloc[-1]
         last_num = clean_df.iloc[-1]
