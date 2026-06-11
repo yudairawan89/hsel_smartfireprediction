@@ -447,7 +447,7 @@ def main_dashboard():
         
         with col_tengah:
             st.markdown("<h5 style='text-align: center;'>Visualisasi Peta Lokasi Prediksi Kebakaran</h5>", unsafe_allow_html=True)
-            pekanbaru_coords = [-0.8953, 100.3957]
+            pekanbaru_coords = [-0.959240, 100.396000]
             color_map = {
                 "Low / Rendah": "blue",
                 "Moderate / Sedang": "green",
