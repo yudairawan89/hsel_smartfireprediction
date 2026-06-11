@@ -732,7 +732,7 @@ def peta_realtime_fragment():
         
         custom_button_html = f"""
         <button onclick="openMap()" style="width: 100%; padding: 8px 16px; background-color: #ffffff; color: #333; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 14px; transition: 0.3s;" onmouseover="this.style.borderColor='#1f77b4'; this.style.color='#1f77b4'" onmouseout="this.style.borderColor='#ccc'; this.style.color='#333'">
-            🌐 Buka Peta Interaktif Lengkap (Tab Baru)
+            🌐 Buka Dashboard Pemantauan
         </button>
         
         <script>
