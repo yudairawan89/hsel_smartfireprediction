@@ -562,25 +562,38 @@ def main_dashboard():
                 # 2. Modifikasi desain garis (smooth) dan warna
                 chart_base = alt.Chart(df_melted).mark_line(
                     strokeWidth=3,
-                    interpolate='monotone' # Membuat garis melengkung halus
+                    interpolate='monotone'
                 ).encode(
                     x=x_axis,
                     y=alt.Y('Nilai:Q', title='Nilai Pembacaan', axis=alt.Axis(grid=True, gridDash=[3,3])),
                     color=alt.Color('Parameter Sensor:N', 
-                                    scale=alt.Scale(scheme='category10'), # Palet warna modern
+                                    scale=alt.Scale(scheme='category10'),
                                     legend=alt.Legend(orient="top", title=None, labelFontSize=12)),
-                    # 3. Efek memudar jika tidak dipilih
                     opacity=alt.condition(selection, alt.value(1), alt.value(0.1)),
                     tooltip=['Waktu_DT:T', 'Parameter Sensor:N', alt.Tooltip('Nilai:Q', format='.1f')]
                 )
 
-                # 4. Tambahkan titik bulat yang juga mengikuti interaktivitas
+                # 3. Tambahkan titik bulat
                 points = chart_base.mark_circle(size=60, opacity=0.8).encode(
                     opacity=alt.condition(selection, alt.value(1), alt.value(0.1))
                 )
 
-                # Gabungkan garis dan titik, lalu tambahkan parameter seleksi
-                chart_all = (chart_base + points).add_params(
+                # 4. TAMBAHAN: Layer teks untuk memunculkan angka di setiap titik
+                text_labels = chart_base.mark_text(
+                    align='center',
+                    baseline='bottom',
+                    dy=-10, # Menggeser posisi angka sedikit ke atas titik (jarak 10 pixel)
+                    fontSize=11,
+                    fontWeight='bold'
+                ).encode(
+                    # Format '.1f' membatasi hanya 1 angka di belakang koma (misal: 35.0)
+                    text=alt.Text('Nilai:Q', format='.1f'), 
+                    # Teks akan hilang sepenuhnya (opacity 0) jika parameter lain diklik di legenda
+                    opacity=alt.condition(selection, alt.value(1), alt.value(0))
+                )
+
+                # Gabungkan garis, titik, dan label teks
+                chart_all = (chart_base + points + text_labels).add_params(
                     selection
                 ).properties(
                     height=450
