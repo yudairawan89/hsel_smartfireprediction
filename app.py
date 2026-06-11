@@ -26,6 +26,7 @@ import time
 from io import StringIO, BytesIO
 import base64
 import streamlit.components.v1 as components
+import os
 
 # === PAGE CONFIG ===
 st.set_page_config(page_title="Smart Fire Prediction HSEL", page_icon="favicon.ico", layout="wide")
@@ -196,7 +197,10 @@ def preprocess_sensor_data(df):
 # === HEADER ===
 col1, col2 = st.columns([1, 9])
 with col1:
-    st.image("logo.png", width=170)
+    try:
+        st.image("logo.png", width=170)
+    except:
+        pass
 with col2:
     st.markdown("""
         <div style='margin-left: 20px;'>
@@ -441,6 +445,18 @@ def peta_realtime_fragment():
         last_num = clean_df.iloc[-1]
         risk_label = last_row["Prediksi Kebakaran"]
         
+        # Ekstrak Tanggal Valid
+        waktu_valid = pd.to_datetime(last_row['Waktu'], errors='coerce')
+        if pd.isna(waktu_valid):
+            try:
+                waktu_valid = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
+            except Exception: pass
+            
+        if pd.notna(waktu_valid):
+            tanggal_valid = waktu_valid.strftime('%d %B %Y, %H:%M WIB')
+        else:
+            tanggal_valid = str(last_row['Waktu'])
+        
         pekanbaru_coords = [0.5333, 101.4500] 
         color_map = {
             "Low / Rendah": "blue",
@@ -450,7 +466,7 @@ def peta_realtime_fragment():
         }
         marker_color = color_map.get(risk_label, "gray")
 
-        # 1. GENERATE KONTEN XAI UNTUK DASHBOARD DOWNLOAD
+        # 1. GENERATE KONTEN XAI UNTUK DASHBOARD DOWNLOAD (TAMPIL SEMUA SESUAI HALAMAN UTAMA)
         xai_html = ""
         try:
             data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
@@ -470,29 +486,33 @@ def peta_realtime_fragment():
             kontribusi_map = sorted(kontribusi_map, key=lambda x: x["pct"], reverse=True)
             
             for factor in kontribusi_map:
-                if factor['pct'] < 5.0:
-                    continue
-                
                 nama_fitur = str(factor['fitur']).lower()
                 persen = factor['pct']
                 arah = factor['shap_val']
                 icon = "🔴" if arah > 0 else "🟢"
                 
-                if "tanah" in nama_fitur:
-                    desc = "Meningkatkan Risiko (Kering)" if arah > 0 else "Meredam Risiko (Lembab)"
-                elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur:
-                    desc = "Memperburuk (Udara Kering)" if arah > 0 else "Menjaga Kebasahan (Lembap)"
-                elif "angin" in nama_fitur or "ff" in nama_fitur:
-                    desc = "Mempercepat Eskalasi (O2)" if arah > 0 else "Kondisi Stabil (Tenang)"
-                elif "suhu" in nama_fitur or "temperatur" in nama_fitur or "tavg" in nama_fitur:
-                    desc = "Memicu Penguapan (Panas)" if arah > 0 else "Stabilitas Termal (Normal)"
-                elif "hujan" in nama_fitur or "rr" in nama_fitur:
-                    desc = "Tanpa Hujan (Pendingin Hilang)" if arah > 0 else "Faktor Pendingin (Hujan)"
+                # Cek jika kontribusi minor (< 5%)
+                if persen < 5.0:
+                    icon = "⚪"
+                    desc = "Dorongan minor terhadap potensi risiko." if arah > 0 else "Efek peredaman sangat kecil."
+                    bg_col = "#f5f5f5"
+                    br_col = "#cccccc"
                 else:
-                    desc = "Meningkatkan Potensi" if arah > 0 else "Menstabilkan Potensi"
-                
-                bg_col = "#ffebeb" if arah > 0 else "#ebffef"
-                br_col = "#ff4b4b" if arah > 0 else "#21c354"
+                    if "tanah" in nama_fitur:
+                        desc = "Meningkatkan Risiko (Kering)" if arah > 0 else "Meredam Risiko (Lembab)"
+                    elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur:
+                        desc = "Memperburuk (Udara Kering)" if arah > 0 else "Menjaga Kebasahan (Lembap)"
+                    elif "angin" in nama_fitur or "ff" in nama_fitur:
+                        desc = "Mempercepat Eskalasi (O2)" if arah > 0 else "Kondisi Stabil (Tenang)"
+                    elif "suhu" in nama_fitur or "temperatur" in nama_fitur or "tavg" in nama_fitur:
+                        desc = "Memicu Penguapan (Panas)" if arah > 0 else "Stabilitas Termal (Normal)"
+                    elif "hujan" in nama_fitur or "rr" in nama_fitur:
+                        desc = "Tanpa Hujan (Pendingin Hilang)" if arah > 0 else "Faktor Pendingin (Hujan)"
+                    else:
+                        desc = "Meningkatkan Potensi" if arah > 0 else "Menstabilkan Potensi"
+                    
+                    bg_col = "#ffebeb" if arah > 0 else "#ebffef"
+                    br_col = "#ff4b4b" if arah > 0 else "#21c354"
                 
                 xai_html += f"""
                 <div style='margin-bottom: 6px; padding: 6px; background: {bg_col}; border-left: 3px solid {br_col}; border-radius: 0 4px 4px 0;'>
@@ -505,34 +525,34 @@ def peta_realtime_fragment():
 
         # 2. GENERATE TINDAK LANJUT UNTUK DASHBOARD DOWNLOAD
         if risk_label == "Low / Rendah":
-            tl_html = """<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'>
+            tl_html = """<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:11px;'>
                 <li>Monitoring rutin kondisi lingkungan</li>
                 <li>Patroli berkala ringan</li>
                 <li>Edukasi preventif kepada masyarakat</li>
                 <li>Dokumentasi dan pelaporan kondisi normal</li>
             </ul>"""
         elif risk_label == "Moderate / Sedang":
-            tl_html = """<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'>
+            tl_html = """<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:11px;'>
                 <li>Peningkatan frekuensi patroli</li>
                 <li>Penyampaian peringatan dini terbatas</li>
                 <li>Koordinasi internal BPBD dan aparat desa</li>
                 <li>Pengawasan aktivitas pembakaran terbuka</li>
             </ul>"""
         elif risk_label == "High / Tinggi":
-            tl_html = """<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'>
+            tl_html = """<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:11px;'>
                 <li>Aktivasi pos siaga tingkat lokal</li>
                 <li>Penempatan personel siaga di titik rawan</li>
                 <li>Koordinasi dengan TNI/Polri dan Manggala Agni</li>
-                <li>Peringatan dini terbuka kepada masyarakat</li>
+                <li>Peringatan dini terbuka masyarakat</li>
                 <li>Penyiapan peralatan pemadaman awal</li>
             </ul>"""
         else: # Very High
-            tl_html = """<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'>
-                <li>Penetapan status siaga darurat tingkat lokal</li>
+            tl_html = """<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:11px;'>
+                <li>Status siaga darurat tingkat lokal</li>
                 <li>Aktivasi penuh posko tanggap darurat</li>
-                <li>Mobilisasi tim pemantauan dan pemadam</li>
-                <li>Koordinasi lintas sektor (BPBD, TNI, Polri, DLH, Manggala Agni)</li>
-                <li>Penyebaran peringatan dini melalui media resmi</li>
+                <li>Mobilisasi tim pemantauan & pemadam</li>
+                <li>Koordinasi lintas sektor (BPBD, TNI, Polri, DLH)</li>
+                <li>Penyebaran peringatan dini media resmi</li>
                 <li>Pengetatan larangan pembakaran terbuka</li>
             </ul>"""
 
@@ -565,7 +585,6 @@ def peta_realtime_fragment():
             </div>
         """, max_width=250)
 
-        # === MODIFIKASI: zoom_start=9.5 agar Peta Lebih Zoom Out ===
         m = folium.Map(location=pekanbaru_coords, zoom_start=9.5, control_scale=True, tiles='OpenStreetMap')
 
         formatter = "function(num) {return L.Util.formatNum(num, 5) + ' &deg;';};"
@@ -587,57 +606,73 @@ def peta_realtime_fragment():
 
         folium.Marker(location=pekanbaru_coords, popup=popup_text, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m)
 
+        # Encode Logo Image to Base64 to render offline/in-blob HTML safely
+        logo_base64 = ""
+        try:
+            if os.path.exists("logo.png"):
+                with open("logo.png", "rb") as image_file:
+                    encoded_string = base64.b64encode(image_file.read()).decode()
+                    logo_base64 = f"data:image/png;base64,{encoded_string}"
+        except Exception:
+            pass
+            
+        logo_img_tag = f'<img src="{logo_base64}" style="height: 55px; background: white; padding: 4px; border-radius: 4px;" alt="Logo">' if logo_base64 else ''
+
         # =========================================================================
         # INJEKSI LAYOUT DASHBOARD PROFESIONAL (DI LUAR FRAME PETA) UNTUK HTML
+        # MENGGUNAKAN LAYOUT 3 KOLOM / FRAME
         # =========================================================================
         raw_map_html = m.get_root().render()
 
-        # HTML Layout yang membentuk Struktur Dashboard Split Screen
         custom_css_and_layout_start = f"""
-        <body style="background-color: #eef2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 25px; display: flex; justify-content: center; align-items: center; min-height: 100vh; box-sizing: border-box;">
-            <div style="background-color: white; padding: 25px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); width: 100%; max-width: 1300px; height: 90vh; display: flex; flex-direction: column;">
+        <body style="background-color: #eef2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; box-sizing: border-box;">
+            <div style="background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); width: 100%; max-width: 1450px; height: 95vh; display: flex; flex-direction: column;">
                 
-                <div style="background-color: #1f77b4; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; flex-shrink: 0;">
-                    <h2 style="margin: 0; font-size: 22px;">Dashboard Prediksi Risiko Kebakaran Lahan</h2>
-                    <p style="margin: 5px 0 0 0; font-size: 14px; font-weight: normal; color: #dceefb;">Wilayah Administratif Kota Pekanbaru</p>
+                <div style="display: flex; justify-content: space-between; align-items: center; background-color: #1f77b4; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; flex-shrink: 0;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        {logo_img_tag}
+                        <div>
+                            <h2 style="margin: 0; font-size: 22px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">Dashboard Prediksi Risiko Kebakaran Lahan</h2>
+                            <p style="margin: 5px 0 0 0; font-size: 13px; color: #dceefb;">Integrasi Model Machine Learning, IoT, dan Spatial GIS</p>
+                        </div>
+                    </div>
+                    <div style="text-align: right; font-size: 13px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 6px; box-shadow: inset 0 0 5px rgba(0,0,0,0.1);">
+                        <b style="font-size: 14px;">Domain/Wilayah:</b> Prov. RIAU - Kota Pekanbaru<br>
+                        <b>Valid/Berlaku:</b> {tanggal_valid} (Observation)
+                    </div>
                 </div>
                 
                 <div style="display: flex; gap: 20px; flex-grow: 1; height: calc(100% - 90px); overflow: hidden;">
                     
-                    <div style="width: 340px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px; flex-shrink: 0;">
+                    <div style="width: 280px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px; flex-shrink: 0;">
                         
-                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
-                            <b style="font-size: 14px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 10px;">Status Prediksi Saat Ini</b>
-                            <div style="font-size: 18px; font-weight: bold; color: {marker_color};">{risk_label}</div>
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                            <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 10px;">Status Prediksi Saat Ini</b>
+                            <div style="font-size: 17px; font-weight: bold; color: {marker_color};">{risk_label}</div>
                         </div>
 
-                        <div style="display: flex; gap: 15px;">
-                            <div style="flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                                <b style="font-size: 13px; color: #333; display: block; margin-bottom: 10px; width: 100%; text-align: left; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Arah Utara</b>
+                        <div style="display: flex; gap: 10px;">
+                            <div style="flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                                <b style="font-size: 12px; color: #333; display: block; margin-bottom: 10px; width: 100%; text-align: left; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Arah Utara</b>
                                 <div style="text-align: center;">
-                                    <div style="font-weight: bold; font-size: 16px; color: #333; margin-bottom: 3px;">U</div>
-                                    <div style="width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 20px solid red; margin: 0 auto;"></div>
-                                    <div style="width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 20px solid #555; margin: 0 auto;"></div>
+                                    <div style="font-weight: bold; font-size: 15px; color: #333; margin-bottom: 3px;">U</div>
+                                    <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 16px solid red; margin: 0 auto;"></div>
+                                    <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 16px solid #555; margin: 0 auto;"></div>
                                 </div>
                             </div>
-                            <div style="flex: 1.5; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
-                                <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 8px;">Legenda Risiko</b>
-                                <div style="font-size: 12px; line-height: 1.8;">
-                                    <div><i style="background: blue; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 6px;"></i> Rendah</div>
-                                    <div><i style="background: green; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 6px;"></i> Sedang</div>
-                                    <div><i style="background: orange; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 6px;"></i> Tinggi</div>
-                                    <div><i style="background: red; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 6px;"></i> Sangat Tinggi</div>
+                            <div style="flex: 1.5; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                                <b style="font-size: 12px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 8px;">Legenda Risiko</b>
+                                <div style="font-size: 11px; line-height: 1.8;">
+                                    <div><i style="background: blue; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Rendah</div>
+                                    <div><i style="background: green; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Sedang</div>
+                                    <div><i style="background: orange; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Tinggi</div>
+                                    <div><i style="background: red; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> S. Tinggi</div>
                                 </div>
                             </div>
                         </div>
 
-                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
-                            <b style="font-size: 14px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 10px;">Faktor Pemicu (XAI SHAP)</b>
-                            <div style="font-size: 12px;">{xai_html}</div>
-                        </div>
-
-                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
-                            <b style="font-size: 14px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 5px;">Tindak Lanjut Instansi</b>
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                            <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 5px;">Tindak Lanjut Instansi</b>
                             <div style="font-size: 12px; line-height: 1.5;">{tl_html}</div>
                         </div>
 
@@ -646,22 +681,43 @@ def peta_realtime_fragment():
                     <div style="flex-grow: 1; border: 3px solid #555; border-radius: 8px; overflow: hidden; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.1);">
                         """
         
-        custom_layout_end = """
-                    </div> </div> </div> </body>
+        custom_layout_end = f"""
+                    </div> 
+                    
+                    <div style="width: 340px; display: flex; flex-direction: column; gap: 15px; flex-shrink: 0;">
+                        
+                        <div style="flex-grow: 1; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                            <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 10px;">Faktor Pemicu (XAI SHAP)</b>
+                            <div style="font-size: 12px;">{xai_html}</div>
+                        </div>
+
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #ffffff; text-align: center; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                            <b style="font-size: 13px;">Produced By/Diproduksi Oleh:</b><br>
+                            <span style="font-size: 12px; font-weight: bold;">Model HSEL Terintegrasi IoT</span><br>
+                            <span style="font-size: 11px; font-style: italic;">Mahasiswa Doctoral Teknologi Informasi<br>Universitas Putra Indonesia YPTK Padang</span><br><br>
+                            <span style="font-size: 12px; color: #0000ff;">Processed Date/Diproses Tanggal: {tanggal_valid}</span><br><br>
+                            <b style="font-size: 11px;">Data Source/Sumber Data:</b> <span style="font-size: 11px;">Sensor IoT Lokal, HSEL Prediction</span>
+                        </div>
+                        
+                    </div>
+
+                </div> 
+            </div> 
+        </body>
         """
         
-        # Mengekstrak HTML dan menginjeksi Custom Layout HTML agar komponen berada di LUAR peta
+        # Mengekstrak HTML dan menginjeksi Custom Layout HTML
         framed_dashboard_html = raw_map_html.replace('<body>', custom_css_and_layout_start).replace('</body>', custom_layout_end)
 
-        # Eksekusi tampilan peta polos (tanpa box ngambang) ke layar Streamlit
+        # Eksekusi tampilan peta polos ke layar Streamlit
         folium_static(m, width=450, height=350)
 
-        # === MODIFIKASI: Buka Tab Baru menggantikan download_button ===
+        # Buka Tab Baru
         b64_html = base64.b64encode(framed_dashboard_html.encode('utf-8')).decode('utf-8')
         
         custom_button_html = f"""
         <button onclick="openMap()" style="width: 100%; padding: 8px 16px; background-color: #ffffff; color: #333; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 14px; transition: 0.3s;" onmouseover="this.style.borderColor='#1f77b4'; this.style.color='#1f77b4'" onmouseout="this.style.borderColor='#ccc'; this.style.color='#333'">
-            🌐 Buka Peta Interaktif (Tab Baru)
+            🌐 Buka Peta Interaktif Lengkap (Tab Baru)
         </button>
         
         <script>
