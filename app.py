@@ -555,12 +555,37 @@ def main_dashboard():
 
             with tab_all:
                 df_melted = df_vis.melt(id_vars=['Waktu_DT'], var_name='Parameter Sensor', value_name='Nilai')
-                chart_all = alt.Chart(df_melted).mark_line(strokeWidth=2, point=True).encode(
+                
+                # 1. Buat fitur seleksi interaktif pada legenda
+                selection = alt.selection_point(fields=['Parameter Sensor'], bind='legend')
+
+                # 2. Modifikasi desain garis (smooth) dan warna
+                chart_base = alt.Chart(df_melted).mark_line(
+                    strokeWidth=3,
+                    interpolate='monotone' # Membuat garis melengkung halus
+                ).encode(
                     x=x_axis,
-                    y=alt.Y('Nilai:Q', title='Nilai Pembacaan'),
-                    color=alt.Color('Parameter Sensor:N', legend=alt.Legend(orient="bottom", title=None)),
+                    y=alt.Y('Nilai:Q', title='Nilai Pembacaan', axis=alt.Axis(grid=True, gridDash=[3,3])),
+                    color=alt.Color('Parameter Sensor:N', 
+                                    scale=alt.Scale(scheme='category10'), # Palet warna modern
+                                    legend=alt.Legend(orient="top", title=None, labelFontSize=12)),
+                    # 3. Efek memudar jika tidak dipilih
+                    opacity=alt.condition(selection, alt.value(1), alt.value(0.1)),
                     tooltip=['Waktu_DT:T', 'Parameter Sensor:N', alt.Tooltip('Nilai:Q', format='.1f')]
-                ).properties(height=400).interactive()
+                )
+
+                # 4. Tambahkan titik bulat yang juga mengikuti interaktivitas
+                points = chart_base.mark_circle(size=60, opacity=0.8).encode(
+                    opacity=alt.condition(selection, alt.value(1), alt.value(0.1))
+                )
+
+                # Gabungkan garis dan titik, lalu tambahkan parameter seleksi
+                chart_all = (chart_base + points).add_params(
+                    selection
+                ).properties(
+                    height=450
+                ).interactive()
+
                 st.altair_chart(chart_all, use_container_width=True)
 
             with tab1:
