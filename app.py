@@ -602,16 +602,11 @@ def peta_realtime_fragment():
         folium.Marker(location=pekanbaru_coords, popup=popup_text, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m)
 
         logo_base64 = ""
-        iot_img_base64 = ""
         logo_upi_base64 = ""
         try:
             if os.path.exists("logo.png"):
                 with open("logo.png", "rb") as image_file:
                     logo_base64 = f"data:image/png;base64,{base64.b64encode(image_file.read()).decode()}"
-                    
-            if os.path.exists("forestiot4.jpg"):
-                with open("forestiot4.jpg", "rb") as iot_file:
-                    iot_img_base64 = f"data:image/jpeg;base64,{base64.b64encode(iot_file.read()).decode()}"
                     
             if os.path.exists("logo upi yptk.png"):
                 with open("logo upi yptk.png", "rb") as upi_file:
@@ -622,36 +617,27 @@ def peta_realtime_fragment():
         logo_img_tag = f'<img src="{logo_base64}" style="height: 55px; background: white; padding: 4px; border-radius: 4px;" alt="Logo">' if logo_base64 else ''
         logo_upi_tag = f'<img src="{logo_upi_base64}" style="width: 60px; height: auto;" alt="Logo UPI YPTK">' if logo_upi_base64 else ''
         
-        if iot_img_base64:
-            iot_img_html = f"""
-            <div style="margin-top: 15px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 1px solid #ddd; background: #fff;">
-                <img src="{iot_img_base64}" style="width: 100%; display: block; object-fit: cover;" alt="Visualisasi Perangkat IoT">
-            </div>
-            """
-        else:
-            iot_img_html = ""
-
         raw_map_html = m.get_root().render()
 
         custom_css_and_layout_start = f"""
-        <body style="background-color: #eef2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; box-sizing: border-box;">
-            <div style="background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); width: 100%; max-width: 1450px; height: 95vh; display: flex; flex-direction: column;">
+        <body style="background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; box-sizing: border-box;">
+            <div style="background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 1450px; height: 95vh; display: flex; flex-direction: column;">
                 
-                <div style="display: flex; justify-content: space-between; align-items: center; background-color: #1f77b4; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; flex-shrink: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #1f77b4 0%, #175a8a 100%); color: white; padding: 15px 25px; border-radius: 10px; margin-bottom: 20px; flex-shrink: 0; box-shadow: 0 4px 15px rgba(31,119,180,0.2);">
                     <div style="display: flex; align-items: center; gap: 15px;">
                         {logo_img_tag}
                         <div>
-                            <h2 style="margin: 0; font-size: 22px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">Dashboard Prediksi Risiko Kebakaran Lahan</h2>
+                            <h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.5px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">Dashboard Prediksi Risiko Kebakaran Lahan</h2>
                             <p style="margin: 5px 0 0 0; font-size: 13px; color: #dceefb;">Integrasi Model Machine Learning, IoT, dan Spatial GIS</p>
                         </div>
                     </div>
-                    <div style="text-align: right; font-size: 13px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 6px; box-shadow: inset 0 0 5px rgba(0,0,0,0.1);">
-                        <b style="font-size: 14px;">Domain/Wilayah:</b> Prov. RIAU - Kota Pekanbaru<br>
-                        <b>Valid/Berlaku:</b> {tanggal_valid} (Observation)
+                    <div style="text-align: right; font-size: 13px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
+                        <b style="font-size: 14px; letter-spacing: 0.5px;">Domain/Wilayah:</b> Prov. RIAU - Kota Pekanbaru<br>
+                        <span style="color: #e2f0ff;"><b>Valid/Berlaku:</b> {tanggal_valid} (Observation)</span>
                     </div>
                 </div>
                 
-                <div style="display: flex; gap: 20px; flex-grow: 1; height: calc(100% - 90px); overflow: hidden;">
+                <div style="display: flex; gap: 20px; flex-grow: 1; height: calc(100% - 95px); overflow: hidden;">
                     
                     <div style="width: 280px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px; flex-shrink: 0;">
                         
@@ -672,10 +658,10 @@ def peta_realtime_fragment():
                             <div style="flex: 1.5; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
                                 <b style="font-size: 12px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 8px;">Legenda Risiko</b>
                                 <div style="font-size: 11px; line-height: 1.8;">
-                                    <div><i style="background: blue; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Rendah</div>
-                                    <div><i style="background: green; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Sedang</div>
-                                    <div><i style="background: orange; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Tinggi</div>
-                                    <div><i style="background: red; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> S. Tinggi</div>
+                                    <div style="display: flex; align-items: center;"><i style="background: blue; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 6px;"></i> Rendah</div>
+                                    <div style="display: flex; align-items: center;"><i style="background: green; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 6px;"></i> Sedang</div>
+                                    <div style="display: flex; align-items: center;"><i style="background: orange; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 6px;"></i> Tinggi</div>
+                                    <div style="display: flex; align-items: center;"><i style="background: red; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 6px;"></i> S. Tinggi</div>
                                 </div>
                             </div>
                         </div>
@@ -684,36 +670,33 @@ def peta_realtime_fragment():
                             <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 5px;">Tindak Lanjut Instansi</b>
                             <div style="font-size: 12px; line-height: 1.5;">{tl_html}</div>
                         </div>
-                        
-                        {iot_img_html}
-
                     </div>
                     
-                    <div style="flex-grow: 1; border: 3px solid #555; border-radius: 8px; overflow: hidden; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.1);">
+                    <div style="flex-grow: 1; border: 2px solid #e2e8f0; border-radius: 10px; overflow: hidden; position: relative; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
                         """
         
         custom_layout_end = f"""
                     </div> 
                     
-                    <div style="width: 340px; display: flex; flex-direction: column; gap: 15px; flex-shrink: 0;">
+                    <div style="width: 340px; display: flex; flex-direction: column; gap: 18px; flex-shrink: 0; padding-left: 5px;">
                         
-                        <div style="flex-grow: 1; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                            <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 10px;">Faktor Pemicu (XAI SHAP)</b>
+                        <div style="flex-grow: 1; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; background: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                            <b style="font-size: 14px; color: #2d3748; display: block; border-bottom: 2px solid #edf2f7; padding-bottom: 12px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 0.5px;">Faktor Pemicu (XAI SHAP)</b>
                             <div style="font-size: 12px;">{xai_html}</div>
                         </div>
 
-                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #ffffff; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 12px;">
+                        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 18px;">
                                 {logo_upi_tag}
-                                <div style="text-align: center;">
-                                    <b style="font-size: 13px;">Produced By/Diproduksi Oleh:</b><br>
-                                    <span style="font-size: 12px; font-weight: bold;">Model HSEL Terintegrasi IoT</span><br>
-                                    <span style="font-size: 11px; font-style: italic;">Mahasiswa Doctoral Teknologi Informasi<br>Universitas Putra Indonesia YPTK Padang</span>
+                                <div style="text-align: left; line-height: 1.5;">
+                                    <b style="font-size: 11px; color: #718096; text-transform: uppercase; letter-spacing: 0.8px;">Produced By</b><br>
+                                    <span style="font-size: 13px; font-weight: bold; color: #2d3748;">Model HSEL Terintegrasi IoT</span><br>
+                                    <span style="font-size: 11px; font-style: italic; color: #4a5568;">Mahasiswa Doctoral Teknologi Informasi<br>Universitas Putra Indonesia YPTK Padang</span>
                                 </div>
                             </div>
-                            <div style="text-align: center;">
-                                <span style="font-size: 12px; color: #0000ff;">Processed Date/Diproses Tanggal: {tanggal_valid}</span><br><br>
-                                <b style="font-size: 11px;">Data Source/Sumber Data:</b> <span style="font-size: 11px;">Sensor IoT Lokal, HSEL Prediction</span>
+                            <div style="border-top: 1px dashed #cbd5e0; padding-top: 15px; text-align: center;">
+                                <div style="font-size: 12px; color: #3182ce; font-weight: 600; margin-bottom: 8px;">Processed Date: <span style="color: #2b6cb0; font-weight: normal;">{tanggal_valid}</span></div>
+                                <div style="font-size: 11px; color: #718096;"><b style="color: #4a5568;">Data Source:</b> Sensor IoT Lokal, HSEL Prediction</div>
                             </div>
                         </div>
                         
@@ -783,15 +766,11 @@ def peta_regional_fragment():
 
         # LOAD GAMBAR BASE64 UNTUK DASHBOARD REGIONAL
         logo_base64 = ""
-        iot_img_base64 = ""
         logo_upi_base64 = ""
         try:
             if os.path.exists("logo.png"):
                 with open("logo.png", "rb") as image_file:
                     logo_base64 = f"data:image/png;base64,{base64.b64encode(image_file.read()).decode()}"
-            if os.path.exists("forestiot4.jpg"):
-                with open("forestiot4.jpg", "rb") as iot_file:
-                    iot_img_base64 = f"data:image/jpeg;base64,{base64.b64encode(iot_file.read()).decode()}"
             if os.path.exists("logo upi yptk.png"):
                 with open("logo upi yptk.png", "rb") as upi_file:
                     logo_upi_base64 = f"data:image/png;base64,{base64.b64encode(upi_file.read()).decode()}"
@@ -801,15 +780,6 @@ def peta_regional_fragment():
         logo_img_tag = f'<img src="{logo_base64}" style="height: 55px; background: white; padding: 4px; border-radius: 4px;" alt="Logo">' if logo_base64 else ''
         logo_upi_tag = f'<img src="{logo_upi_base64}" style="width: 60px; height: auto;" alt="Logo UPI YPTK">' if logo_upi_base64 else ''
         
-        if iot_img_base64:
-            iot_img_html = f"""
-            <div style="border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 1px solid #ddd; background: #fff;">
-                <img src="{iot_img_base64}" style="width: 100%; display: block; object-fit: cover;" alt="Visualisasi Perangkat IoT">
-            </div>
-            """
-        else:
-            iot_img_html = ""
-
         # 1. PERSIAPAN PETA 
         regional_coords = [0.8500, 101.9000] # Digeser sedikit agar Bengkalis dan lainnya terlihat pas
         m_regional = folium.Map(location=regional_coords, zoom_start=7.5, control_scale=True, tiles='OpenStreetMap')
@@ -910,65 +880,66 @@ def peta_regional_fragment():
         # 3. RENDER PETA KE HTML
         raw_map_html = m_regional.get_root().render()
 
-        # 4. INJEKSI LAYOUT HTML DASHBOARD BARU
+        # 4. INJEKSI LAYOUT HTML DASHBOARD BARU (Versi Profesional)
         custom_css_and_layout_start = f"""
-        <body style="background-color: #eef2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; box-sizing: border-box;">
-            <div style="background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); width: 100%; max-width: 1450px; height: 95vh; display: flex; flex-direction: column;">
+        <body style="background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; box-sizing: border-box;">
+            <div style="background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 1450px; height: 95vh; display: flex; flex-direction: column;">
                 
-                <div style="display: flex; justify-content: space-between; align-items: center; background-color: #2c3e50; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; flex-shrink: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 15px 25px; border-radius: 10px; margin-bottom: 20px; flex-shrink: 0; box-shadow: 0 4px 15px rgba(30,60,114,0.2);">
                     <div style="display: flex; align-items: center; gap: 15px;">
                         {logo_img_tag}
                         <div>
-                            <h2 style="margin: 0; font-size: 22px;">Pemantauan Regional (Pekanbaru, Siak, Pelalawan, Bengkalis)</h2>
-                            <p style="margin: 5px 0 0 0; font-size: 13px; color: #bdc3c7;">Tahap Perluasan Integrasi Sensor IoT</p>
+                            <h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.5px;">Pemantauan Regional (Pekanbaru, Siak, Pelalawan, Bengkalis)</h2>
+                            <p style="margin: 5px 0 0 0; font-size: 13px; color: #d1e8ff;">Tahap Perluasan Integrasi Sensor IoT</p>
                         </div>
                     </div>
-                    <div style="text-align: right; font-size: 13px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 6px;">
-                        <b style="font-size: 14px;">Domain:</b> Sebagian Wilayah Riau<br>
-                        <b>Valid/Berlaku:</b> {tanggal_valid}
+                    <div style="text-align: right; font-size: 13px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
+                        <b style="font-size: 14px; letter-spacing: 0.5px;">Domain:</b> Sebagian Wilayah Riau<br>
+                        <span style="color: #e2f0ff;"><b>Valid/Berlaku:</b> {tanggal_valid}</span>
                     </div>
                 </div>
                 
-                <div style="display: flex; gap: 20px; flex-grow: 1; height: calc(100% - 90px); overflow: hidden;">
+                <div style="display: flex; gap: 20px; flex-grow: 1; height: calc(100% - 95px); overflow: hidden;">
                     
-                    <div style="width: 320px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px;">
+                    <div style="width: 330px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; padding-right: 5px;">
                         
-                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
-                            <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 8px;">Legenda Status Kawasan</b>
-                            <div style="font-size: 12px; line-height: 2.0;">
-                                <div><i style="background: blue; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 8px;"></i> Risiko Rendah</div>
-                                <div><i style="background: green; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 8px;"></i> Risiko Sedang</div>
-                                <div><i style="background: orange; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 8px;"></i> Risiko Tinggi</div>
-                                <div><i style="background: red; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 8px;"></i> Risiko S. Tinggi</div>
-                                <hr style="margin: 8px 0; border: 0; border-top: 1px solid #ccc;">
-                                <div><i style="background: #9e9e9e; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 8px;"></i> <b>Menunggu Data IoT</b></div>
+                        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                            <b style="font-size: 14px; color: #2d3748; display: block; border-bottom: 2px solid #edf2f7; padding-bottom: 12px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 0.5px;">Legenda Status Kawasan</b>
+                            <div style="font-size: 13px; color: #4a5568; line-height: 2.4;">
+                                <div style="display: flex; align-items: center;"><i style="background: blue; width: 14px; height: 14px; display: inline-block; border-radius: 50%; margin-right: 12px; box-shadow: 0 0 0 3px rgba(0,0,255,0.1);"></i> Risiko Rendah</div>
+                                <div style="display: flex; align-items: center;"><i style="background: green; width: 14px; height: 14px; display: inline-block; border-radius: 50%; margin-right: 12px; box-shadow: 0 0 0 3px rgba(0,128,0,0.1);"></i> Risiko Sedang</div>
+                                <div style="display: flex; align-items: center;"><i style="background: orange; width: 14px; height: 14px; display: inline-block; border-radius: 50%; margin-right: 12px; box-shadow: 0 0 0 3px rgba(255,165,0,0.1);"></i> Risiko Tinggi</div>
+                                <div style="display: flex; align-items: center;"><i style="background: red; width: 14px; height: 14px; display: inline-block; border-radius: 50%; margin-right: 12px; box-shadow: 0 0 0 3px rgba(255,0,0,0.1);"></i> Risiko S. Tinggi</div>
+                                <div style="height: 1px; background: #edf2f7; margin: 12px 0;"></div>
+                                <div style="display: flex; align-items: center;"><i style="background: #9e9e9e; width: 14px; height: 14px; display: inline-block; border-radius: 50%; margin-right: 12px; box-shadow: 0 0 0 3px rgba(158,158,158,0.2);"></i> <b style="color: #2d3748;">Menunggu Data IoT</b></div>
                             </div>
                         </div>
 
-                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #ffffff; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 12px;">
+                        <div style="background: #fffaf0; border: 1px solid #feebc8; border-left: 5px solid #ed8936; border-radius: 8px; padding: 18px; color: #9c4221; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                            <b style="font-size: 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">💡 Catatan Sistem</b>
+                            <span style="font-size: 13px; line-height: 1.6; display: block; color: #7b341e;">Pemantauan <i>real-time</i> aktif di Pekanbaru. Kab. Siak, Kab. Pelalawan, dan Kab. Bengkalis dalam tahap persiapan pemasangan perangkat sensor.</span>
+                        </div>
+
+                        <div style="flex-grow: 1;"></div>
+
+                        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 18px;">
                                 {logo_upi_tag}
-                                <div style="text-align: center;">
-                                    <b style="font-size: 13px;">Produced By/Diproduksi Oleh:</b><br>
-                                    <span style="font-size: 12px; font-weight: bold;">Model HSEL Terintegrasi IoT</span><br>
-                                    <span style="font-size: 11px; font-style: italic;">Mahasiswa Doctoral Teknologi Informasi<br>Universitas Putra Indonesia YPTK Padang</span>
+                                <div style="text-align: left; line-height: 1.5;">
+                                    <b style="font-size: 11px; color: #718096; text-transform: uppercase; letter-spacing: 0.8px;">Produced By</b><br>
+                                    <span style="font-size: 13px; font-weight: bold; color: #2d3748;">Model HSEL Terintegrasi IoT</span><br>
+                                    <span style="font-size: 11px; font-style: italic; color: #4a5568;">Mahasiswa Doctoral Teknologi Informasi<br>Universitas Putra Indonesia YPTK Padang</span>
                                 </div>
                             </div>
-                            <div style="text-align: center;">
-                                <span style="font-size: 12px; color: #0000ff;">Processed Date/Diproses Tanggal: {tanggal_valid}</span><br><br>
-                                <b style="font-size: 11px;">Data Source/Sumber Data:</b> <span style="font-size: 11px;">Sensor IoT Lokal, HSEL Prediction</span>
+                            <div style="border-top: 1px dashed #cbd5e0; padding-top: 15px; text-align: center;">
+                                <div style="font-size: 12px; color: #3182ce; font-weight: 600; margin-bottom: 8px;">Processed Date: <span style="color: #2b6cb0; font-weight: normal;">{tanggal_valid}</span></div>
+                                <div style="font-size: 11px; color: #718096;"><b style="color: #4a5568;">Data Source:</b> Sensor IoT Lokal, HSEL Prediction</div>
                             </div>
                         </div>
 
-                        {iot_img_html}
-
-                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #fff3cd; color: #856404;">
-                            <b style="font-size: 12px;">Catatan Sistem:</b><br>
-                            <span style="font-size: 11px;">Pemantauan <i>real-time</i> aktif di Pekanbaru. Kab. Siak, Kab. Pelalawan, dan Kab. Bengkalis dalam tahap persiapan pemasangan perangkat sensor.</span>
-                        </div>
                     </div>
                     
-                    <div style="flex-grow: 1; border: 3px solid #555; border-radius: 8px; overflow: hidden; position: relative;">
+                    <div style="flex-grow: 1; border: 2px solid #e2e8f0; border-radius: 10px; overflow: hidden; position: relative; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
         """
         
         custom_layout_end = "</div></div></div></body>"
