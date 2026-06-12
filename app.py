@@ -752,7 +752,7 @@ def peta_realtime_fragment():
 
 
 # =========================================================================
-# === BAGIAN PETA REGIONAL FRAGMENT (PEKANBARU, SIAK, PELALAWAN) ==========
+# === BAGIAN PETA REGIONAL FRAGMENT (PEKANBARU, SIAK, PELALAWAN, BENGKALIS)
 # =========================================================================
 @st.fragment(run_every=7)
 def peta_regional_fragment():
@@ -762,6 +762,7 @@ def peta_regional_fragment():
     if res[0] is not None and not isinstance(res[0], str):
         df, clean_df, scaled_all, fitur = res
         last_row = df.iloc[-1]
+        last_num = clean_df.iloc[-1]
         risk_label_pku = last_row["Prediksi Kebakaran"]
         
         waktu_valid = pd.to_datetime(last_row['Waktu'], errors='coerce')
@@ -780,12 +781,41 @@ def peta_regional_fragment():
         }
         marker_color_pku = color_map.get(risk_label_pku, "gray")
 
-        # 1. PERSIAPAN PETA (Fokus ke area Pekanbaru, Siak, Pelalawan)
-        regional_coords = [0.5500, 101.9000] 
-        m_regional = folium.Map(location=regional_coords, zoom_start=8, control_scale=True, tiles='OpenStreetMap')
+        # LOAD GAMBAR BASE64 UNTUK DASHBOARD REGIONAL
+        logo_base64 = ""
+        iot_img_base64 = ""
+        logo_upi_base64 = ""
+        try:
+            if os.path.exists("logo.png"):
+                with open("logo.png", "rb") as image_file:
+                    logo_base64 = f"data:image/png;base64,{base64.b64encode(image_file.read()).decode()}"
+            if os.path.exists("forestiot4.jpg"):
+                with open("forestiot4.jpg", "rb") as iot_file:
+                    iot_img_base64 = f"data:image/jpeg;base64,{base64.b64encode(iot_file.read()).decode()}"
+            if os.path.exists("logo upi yptk.png"):
+                with open("logo upi yptk.png", "rb") as upi_file:
+                    logo_upi_base64 = f"data:image/png;base64,{base64.b64encode(upi_file.read()).decode()}"
+        except Exception:
+            pass
+
+        logo_img_tag = f'<img src="{logo_base64}" style="height: 55px; background: white; padding: 4px; border-radius: 4px;" alt="Logo">' if logo_base64 else ''
+        logo_upi_tag = f'<img src="{logo_upi_base64}" style="width: 60px; height: auto;" alt="Logo UPI YPTK">' if logo_upi_base64 else ''
+        
+        if iot_img_base64:
+            iot_img_html = f"""
+            <div style="border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 1px solid #ddd; background: #fff;">
+                <img src="{iot_img_base64}" style="width: 100%; display: block; object-fit: cover;" alt="Visualisasi Perangkat IoT">
+            </div>
+            """
+        else:
+            iot_img_html = ""
+
+        # 1. PERSIAPAN PETA 
+        regional_coords = [0.8500, 101.9000] # Digeser sedikit agar Bengkalis dan lainnya terlihat pas
+        m_regional = folium.Map(location=regional_coords, zoom_start=7.5, control_scale=True, tiles='OpenStreetMap')
         Fullscreen(position='topright').add_to(m_regional)
 
-        # 2. BACA GEOJSON DARI CACHE & FILTER HANYA 3 WILAYAH
+        # 2. BACA GEOJSON DARI CACHE & FILTER HANYA 4 WILAYAH (Termasuk Bengkalis)
         riau_geojson_data = load_riau_geojson()
         
         if riau_geojson_data:
@@ -799,7 +829,7 @@ def peta_regional_fragment():
                 # Cek Pekanbaru (Real-time)
                 if 'pekanbaru' in nama_wilayah or 'pekanbaru' in kab_kota:
                     feature['properties']['warna_fill'] = marker_color_pku
-                    feature['properties']['tooltip_info'] = f"Status: {risk_label_pku} (Real-time HSEL)"
+                    feature['properties']['tooltip_info'] = f"Status: {risk_label_pku} (Real-time)"
                     filtered_features.append(feature)
                 
                 # Cek Siak (Dummy)
@@ -813,8 +843,13 @@ def peta_regional_fragment():
                     feature['properties']['warna_fill'] = "#9e9e9e" # Abu-abu
                     feature['properties']['tooltip_info'] = "Status: Menunggu Data IoT"
                     filtered_features.append(feature)
+                
+                # Cek Bengkalis (Dummy)
+                elif 'bengkalis' in nama_wilayah or 'bengkalis' in kab_kota:
+                    feature['properties']['warna_fill'] = "#9e9e9e" # Abu-abu
+                    feature['properties']['tooltip_info'] = "Status: Menunggu Data IoT"
+                    filtered_features.append(feature)
 
-            # Ganti features asli dengan yang sudah difilter (hanya 3 wilayah) untuk meringankan sistem
             riau_geojson['features'] = filtered_features
 
             folium.GeoJson(
@@ -832,10 +867,45 @@ def peta_regional_fragment():
                 )
             ).add_to(m_regional)
             
-            # Marker Khusus Pekanbaru
+            # --- PEMBUATAN MARKER / POIN LOKASI ---
+            # Popup Khusus Pekanbaru (Real Data)
+            popup_pku_html = f"""<div style='width: 230px; font-size: 13px; line-height: 1.5;'>
+                <b>Wilayah:</b> Kota Pekanbaru<br>
+                <b>Prediksi:</b> {risk_label_pku}<br>
+                <b>Suhu:</b> {float(last_num[fitur[0]]):.1f} °C<br>
+                <b>Kelembapan:</b> {float(last_num[fitur[1]]):.1f} %<br>
+                <b>Curah Hujan:</b> {float(last_num[fitur[2]]):.1f} mm<br>
+                <b>Kecepatan Angin:</b> {float(last_num[fitur[3]]):.1f} m/s<br>
+                <b>Kelembaban Tanah:</b> {float(last_num[fitur[4]]):.1f} %<br>
+                <b>Waktu:</b> {last_row['Waktu']}
+                </div>"""
             pekanbaru_coords = [0.5333, 101.4500]
-            popup_pku = folium.Popup(f"<div style='width: 150px;'><b>Kota Pekanbaru</b><br>Prediksi: {risk_label_pku}</div>", max_width=200)
-            folium.Marker(location=pekanbaru_coords, popup=popup_pku, icon=folium.Icon(color=marker_color_pku, icon="info-sign")).add_to(m_regional)
+            folium.Marker(location=pekanbaru_coords, popup=folium.Popup(popup_pku_html, max_width=250), icon=folium.Icon(color=marker_color_pku, icon="info-sign")).add_to(m_regional)
+
+            # Fungsi Pembuat Popup Dummy untuk Wilayah Lain
+            def get_dummy_popup(nama_daerah):
+                return f"""<div style='width: 230px; font-size: 13px; line-height: 1.5;'>
+                <b>Wilayah:</b> {nama_daerah}<br>
+                <b>Prediksi:</b> Unknown / Menunggu Data<br>
+                <b>Suhu:</b> Unknown<br>
+                <b>Kelembapan:</b> Unknown<br>
+                <b>Curah Hujan:</b> Unknown<br>
+                <b>Kecepatan Angin:</b> Unknown<br>
+                <b>Kelembaban Tanah:</b> Unknown<br>
+                <b>Waktu:</b> -
+                </div>"""
+
+            # Marker Siak
+            siak_coords = [0.7490, 102.0460]
+            folium.Marker(location=siak_coords, popup=folium.Popup(get_dummy_popup("Kabupaten Siak"), max_width=250), icon=folium.Icon(color="gray", icon="info-sign")).add_to(m_regional)
+            
+            # Marker Pelalawan
+            pelalawan_coords = [0.2662, 101.6917]
+            folium.Marker(location=pelalawan_coords, popup=folium.Popup(get_dummy_popup("Kabupaten Pelalawan"), max_width=250), icon=folium.Icon(color="gray", icon="info-sign")).add_to(m_regional)
+            
+            # Marker Bengkalis
+            bengkalis_coords = [1.4789, 102.1444]
+            folium.Marker(location=bengkalis_coords, popup=folium.Popup(get_dummy_popup("Kabupaten Bengkalis"), max_width=250), icon=folium.Icon(color="gray", icon="info-sign")).add_to(m_regional)
 
         # 3. RENDER PETA KE HTML
         raw_map_html = m_regional.get_root().render()
@@ -846,11 +916,14 @@ def peta_regional_fragment():
             <div style="background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); width: 100%; max-width: 1450px; height: 95vh; display: flex; flex-direction: column;">
                 
                 <div style="display: flex; justify-content: space-between; align-items: center; background-color: #2c3e50; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; flex-shrink: 0;">
-                    <div>
-                        <h2 style="margin: 0; font-size: 22px;">Pemantauan Regional (Pekanbaru, Siak, Pelalawan)</h2>
-                        <p style="margin: 5px 0 0 0; font-size: 13px; color: #bdc3c7;">Tahap Perluasan Integrasi Sensor IoT</p>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        {logo_img_tag}
+                        <div>
+                            <h2 style="margin: 0; font-size: 22px;">Pemantauan Regional (Pekanbaru, Siak, Pelalawan, Bengkalis)</h2>
+                            <p style="margin: 5px 0 0 0; font-size: 13px; color: #bdc3c7;">Tahap Perluasan Integrasi Sensor IoT</p>
+                        </div>
                     </div>
-                    <div style="text-align: right; font-size: 13px;">
+                    <div style="text-align: right; font-size: 13px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 6px;">
                         <b style="font-size: 14px;">Domain:</b> Sebagian Wilayah Riau<br>
                         <b>Valid/Berlaku:</b> {tanggal_valid}
                     </div>
@@ -858,7 +931,8 @@ def peta_regional_fragment():
                 
                 <div style="display: flex; gap: 20px; flex-grow: 1; height: calc(100% - 90px); overflow: hidden;">
                     
-                    <div style="width: 260px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px;">
+                    <div style="width: 320px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px;">
+                        
                         <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
                             <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 8px;">Legenda Status Kawasan</b>
                             <div style="font-size: 12px; line-height: 2.0;">
@@ -871,9 +945,26 @@ def peta_regional_fragment():
                             </div>
                         </div>
 
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #ffffff; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 12px;">
+                                {logo_upi_tag}
+                                <div style="text-align: center;">
+                                    <b style="font-size: 13px;">Produced By/Diproduksi Oleh:</b><br>
+                                    <span style="font-size: 12px; font-weight: bold;">Model HSEL Terintegrasi IoT</span><br>
+                                    <span style="font-size: 11px; font-style: italic;">Mahasiswa Doctoral Teknologi Informasi<br>Universitas Putra Indonesia YPTK Padang</span>
+                                </div>
+                            </div>
+                            <div style="text-align: center;">
+                                <span style="font-size: 12px; color: #0000ff;">Processed Date/Diproses Tanggal: {tanggal_valid}</span><br><br>
+                                <b style="font-size: 11px;">Data Source/Sumber Data:</b> <span style="font-size: 11px;">Sensor IoT Lokal, HSEL Prediction</span>
+                            </div>
+                        </div>
+
+                        {iot_img_html}
+
                         <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #fff3cd; color: #856404;">
                             <b style="font-size: 12px;">Catatan Sistem:</b><br>
-                            <span style="font-size: 11px;">Pemantauan <i>real-time</i> aktif di Pekanbaru. Kab. Siak dan Kab. Pelalawan dalam tahap persiapan pemasangan perangkat sensor.</span>
+                            <span style="font-size: 11px;">Pemantauan <i>real-time</i> aktif di Pekanbaru. Kab. Siak, Kab. Pelalawan, dan Kab. Bengkalis dalam tahap persiapan pemasangan perangkat sensor.</span>
                         </div>
                     </div>
                     
@@ -883,7 +974,7 @@ def peta_regional_fragment():
         custom_layout_end = "</div></div></div></body>"
         framed_dashboard_html = raw_map_html.replace('<body>', custom_css_and_layout_start).replace('</body>', custom_layout_end)
 
-        # 5. RENDER TOMBOL DENGAN JAVASCRIPT FETCH (Mengatasi Blank Page Browser)
+        # 5. RENDER TOMBOL DENGAN JAVASCRIPT FETCH
         b64_html = base64.b64encode(framed_dashboard_html.encode('utf-8')).decode('utf-8')
         
         custom_button_html = f"""
