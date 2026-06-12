@@ -8,26 +8,18 @@ from folium.plugins import MousePosition, Fullscreen
 from PIL import Image
 import re
 import altair as alt
-
-# === TAMBAHAN LIBRARY UNTUK BACA GEOJSON & KOMPONEN PETA ===
 import json
-import copy  # Ditambahkan untuk melakukan deepcopy geojson
-
-# === TAMBAHAN LIBRARY UNTUK XAI ===
 import shap
 import matplotlib.pyplot as plt
-
-# === TAMBAHAN LIBRARY SASTRAWI ===
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
-
-# === TAMBAHAN LIBRARY UNTUK LOAD DATA & WEB KOMPONEN ===
 import requests
 import time
 from io import StringIO, BytesIO
 import base64
 import streamlit.components.v1 as components
 import os
+import copy
 
 # === PAGE CONFIG ===
 st.set_page_config(page_title="Smart Fire Prediction HSEL", page_icon="favicon.ico", layout="wide")
@@ -89,7 +81,7 @@ risk_styles = {
     "Very High / Sangat Tinggi": ("white", "red")
 }
 
-# === LOAD MODEL, SCALER, SASTRAWI, DAN TEKS MODEL SECARA GLOBAL ===
+# === LOAD MODEL, SCALER, SASTRAWI ===
 @st.cache_resource
 def load_model():
     return joblib.load("HSEL_IoT_Model.joblib")
@@ -122,6 +114,15 @@ try:
     vectorizer, model_text = load_text_models()
 except Exception:
     vectorizer, model_text = None, None
+
+# === LOAD GEOJSON DENGAN CACHE (Mencegah Lag) ===
+@st.cache_data
+def load_riau_geojson():
+    try:
+        with open("Provinsi Riau-KAB_KOTA.geojson", "r") as f:
+            return json.load(f)
+    except Exception as e:
+        return None
 
 # === KONFIG GOOGLE SHEET ===
 SHEET_ID = "1ZscUJ6SLPIF33t8ikVHUmR68b-y3Q9_r_p9d2rDRMCM"
@@ -433,7 +434,7 @@ def indikator_kiri_realtime():
 
 
 # =========================================================================
-# === BAGIAN PETA REALTIME FRAGMENT (REFRESH 7 DETIK) =====================
+# === BAGIAN PETA REALTIME PEKANBARU FRAGMENT (REFRESH 7 DETIK) ===========
 # =========================================================================
 @st.fragment(run_every=7)
 def peta_realtime_fragment():
@@ -446,7 +447,6 @@ def peta_realtime_fragment():
         last_num = clean_df.iloc[-1]
         risk_label = last_row["Prediksi Kebakaran"]
         
-        # Ekstrak Tanggal Valid
         waktu_valid = pd.to_datetime(last_row['Waktu'], errors='coerce')
         if pd.isna(waktu_valid):
             try:
@@ -467,7 +467,6 @@ def peta_realtime_fragment():
         }
         marker_color = color_map.get(risk_label, "gray")
 
-        # 1. GENERATE KONTEN XAI UNTUK DASHBOARD DOWNLOAD
         xai_html = ""
         try:
             data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
@@ -492,7 +491,6 @@ def peta_realtime_fragment():
                 arah = factor['shap_val']
                 icon = "🔴" if arah > 0 else "🟢"
                 
-                # Cek jika kontribusi minor (< 5%)
                 if persen < 5.0:
                     icon = "⚪"
                     desc = "Dorongan minor terhadap potensi risiko." if arah > 0 else "Efek peredaman sangat kecil."
@@ -524,7 +522,6 @@ def peta_realtime_fragment():
         except Exception:
             xai_html = "<i>Data XAI belum siap dimuat.</i>"
 
-        # 2. GENERATE TINDAK LANJUT UNTUK DASHBOARD DOWNLOAD
         if risk_label == "Low / Rendah":
             tl_html = """<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:11px;'>
                 <li>Monitoring rutin kondisi lingkungan</li>
@@ -547,7 +544,7 @@ def peta_realtime_fragment():
                 <li>Peringatan dini terbuka masyarakat</li>
                 <li>Penyiapan peralatan pemadaman awal</li>
             </ul>"""
-        else: # Very High
+        else:
             tl_html = """<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:11px;'>
                 <li>Status siaga darurat tingkat lokal</li>
                 <li>Aktivasi penuh posko tanggap darurat</li>
@@ -557,40 +554,19 @@ def peta_realtime_fragment():
                 <li>Pengetatan larangan pembakaran terbuka</li>
             </ul>"""
 
-        # 3. MEMBUAT PETA (Map Base Standar Non-Satelit)
         try:
-            with open("Provinsi Riau-KAB_KOTA.geojson", "r") as f:
-                riau_geojson = json.load(f)
-            
-            # Membuat deep copy agar properties map Pekanbaru vs Riau tidak tabrakan di memory
-            riau_geojson_full = copy.deepcopy(riau_geojson)
-            
-            # Ekstraksi GeoJSON khusus Pekanbaru
-            pekanbaru_feature = None
-            for feature in riau_geojson['features']:
-                nama_wilayah = feature['properties'].get('nama', '').lower()
-                kab_kota = feature['properties'].get('kab_kota', '').lower()
-                if 'pekanbaru' in nama_wilayah or 'pekanbaru' in kab_kota:
-                    pekanbaru_feature = feature
-                    break
-            pekanbaru_geojson = {"type": "FeatureCollection", "features": [pekanbaru_feature] if pekanbaru_feature else []}
-            
-            # Injeksi properties warna dan status untuk GeoJSON seluruh Provinsi Riau
-            for feature in riau_geojson_full['features']:
-                nama_wilayah = feature['properties'].get('nama', '').lower()
-                kab_kota = feature['properties'].get('kab_kota', '').lower()
-                if 'pekanbaru' in nama_wilayah or 'pekanbaru' in kab_kota:
-                    feature['properties']['status_prediksi'] = risk_label
-                    feature['properties']['fill_color'] = marker_color
-                else:
-                    feature['properties']['status_prediksi'] = "Menunggu Data Sensor IoT"
-                    feature['properties']['fill_color'] = "#808080" # Abu-abu
-                    
+            riau_geojson_data = load_riau_geojson()
+            pekanbaru_geojson = {"type": "FeatureCollection", "features": []}
+            if riau_geojson_data:
+                for feature in riau_geojson_data['features']:
+                    nama_wilayah = feature['properties'].get('nama', '').lower()
+                    kab_kota = feature['properties'].get('kab_kota', '').lower()
+                    if 'pekanbaru' in nama_wilayah or 'pekanbaru' in kab_kota:
+                        pekanbaru_geojson["features"].append(feature)
+                        break
         except Exception:
             pekanbaru_geojson = None
-            riau_geojson_full = None
 
-        # -- Popup Kota Pekanbaru --
         popup_text = folium.Popup(f"""
             <div style='width: 230px; font-size: 13px; line-height: 1.5;'>
             <b>Wilayah:</b> Kota Pekanbaru<br>
@@ -604,15 +580,14 @@ def peta_realtime_fragment():
             </div>
         """, max_width=250)
 
-        # ==========================================
-        # -- MAP 1: PETA PEKANBARU (Tampil di Layar)
-        # ==========================================
         m = folium.Map(location=pekanbaru_coords, zoom_start=9.5, control_scale=True, tiles='OpenStreetMap')
+
         formatter = "function(num) {return L.Util.formatNum(num, 5) + ' &deg;';};"
         MousePosition(
             position="bottomleft", separator=" | ", empty_string="Koordinat tidak tersedia",
             lng_first=True, num_digits=20, prefix="Posisi:", lat_formatter=formatter, lng_formatter=formatter,
         ).add_to(m)
+        
         Fullscreen(position='topright').add_to(m)
 
         if pekanbaru_geojson and pekanbaru_geojson["features"]:
@@ -623,36 +598,9 @@ def peta_realtime_fragment():
                 },
                 tooltip=folium.GeoJsonTooltip(fields=['nama'], aliases=['Wilayah:'], style="font-weight: bold; font-size: 14px;")
             ).add_to(m)
+
         folium.Marker(location=pekanbaru_coords, popup=popup_text, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m)
 
-
-        # ==========================================
-        # -- MAP 2: PETA RIAU FULL (Khusus Tab Baru)
-        # ==========================================
-        m_riau = folium.Map(location=[0.5000, 101.8000], zoom_start=7.5, control_scale=True, tiles='OpenStreetMap')
-        MousePosition(
-            position="bottomleft", separator=" | ", empty_string="Koordinat tidak tersedia",
-            lng_first=True, num_digits=20, prefix="Posisi:", lat_formatter=formatter, lng_formatter=formatter,
-        ).add_to(m_riau)
-        Fullscreen(position='topright').add_to(m_riau)
-
-        if riau_geojson_full and riau_geojson_full["features"]:
-            folium.GeoJson(
-                riau_geojson_full,
-                style_function=lambda feature: {
-                    'fillColor': feature['properties'].get('fill_color', '#808080'),
-                    'color': feature['properties'].get('fill_color', '#808080'),
-                    'weight': 1.5,
-                    'fillOpacity': 0.5,   
-                },
-                tooltip=folium.GeoJsonTooltip(fields=['nama', 'status_prediksi'], aliases=['Wilayah:', 'Status:'], style="font-weight: bold; font-size: 14px;")
-            ).add_to(m_riau)
-            
-        # Tambahkan marker IoT untuk Pekanbaru di map Riau juga agar lebih jelas
-        folium.Marker(location=pekanbaru_coords, popup=popup_text, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m_riau)
-
-
-        # Encode Logo Image, IoT Image, and UPI Logo to Base64 to render offline HTML safely
         logo_base64 = ""
         iot_img_base64 = ""
         logo_upi_base64 = ""
@@ -681,12 +629,69 @@ def peta_realtime_fragment():
             </div>
             """
         else:
-            iot_img_html = "" 
+            iot_img_html = ""
 
+        raw_map_html = m.get_root().render()
 
-        # =========================================================================
-        # INJEKSI LAYOUT DASHBOARD PROFESIONAL UNTUK HTML
-        # =========================================================================
+        custom_css_and_layout_start = f"""
+        <body style="background-color: #eef2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; box-sizing: border-box;">
+            <div style="background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); width: 100%; max-width: 1450px; height: 95vh; display: flex; flex-direction: column;">
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; background-color: #1f77b4; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; flex-shrink: 0;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        {logo_img_tag}
+                        <div>
+                            <h2 style="margin: 0; font-size: 22px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">Dashboard Prediksi Risiko Kebakaran Lahan</h2>
+                            <p style="margin: 5px 0 0 0; font-size: 13px; color: #dceefb;">Integrasi Model Machine Learning, IoT, dan Spatial GIS</p>
+                        </div>
+                    </div>
+                    <div style="text-align: right; font-size: 13px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 6px; box-shadow: inset 0 0 5px rgba(0,0,0,0.1);">
+                        <b style="font-size: 14px;">Domain/Wilayah:</b> Prov. RIAU - Kota Pekanbaru<br>
+                        <b>Valid/Berlaku:</b> {tanggal_valid} (Observation)
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 20px; flex-grow: 1; height: calc(100% - 90px); overflow: hidden;">
+                    
+                    <div style="width: 280px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px; flex-shrink: 0;">
+                        
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                            <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 10px;">Status Prediksi Saat Ini</b>
+                            <div style="font-size: 17px; font-weight: bold; color: {marker_color};">{risk_label}</div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px;">
+                            <div style="flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                                <b style="font-size: 12px; color: #333; display: block; margin-bottom: 10px; width: 100%; text-align: left; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Arah Utara</b>
+                                <div style="text-align: center;">
+                                    <div style="font-weight: bold; font-size: 15px; color: #333; margin-bottom: 3px;">U</div>
+                                    <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 16px solid red; margin: 0 auto;"></div>
+                                    <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 16px solid #555; margin: 0 auto;"></div>
+                                </div>
+                            </div>
+                            <div style="flex: 1.5; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                                <b style="font-size: 12px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 8px;">Legenda Risiko</b>
+                                <div style="font-size: 11px; line-height: 1.8;">
+                                    <div><i style="background: blue; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Rendah</div>
+                                    <div><i style="background: green; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Sedang</div>
+                                    <div><i style="background: orange; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Tinggi</div>
+                                    <div><i style="background: red; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> S. Tinggi</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                            <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 5px;">Tindak Lanjut Instansi</b>
+                            <div style="font-size: 12px; line-height: 1.5;">{tl_html}</div>
+                        </div>
+                        
+                        {iot_img_html}
+
+                    </div>
+                    
+                    <div style="flex-grow: 1; border: 3px solid #555; border-radius: 8px; overflow: hidden; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.1);">
+                        """
+        
         custom_layout_end = f"""
                     </div> 
                     
@@ -718,132 +723,188 @@ def peta_realtime_fragment():
             </div> 
         </body>
         """
-
-        # Fungsi Template untuk Layout Dashboard HTML
-        def build_html_layout(domain_title, status_title, is_riau_full=False):
-            legend_items = """
-                                <div><i style="background: blue; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Rendah</div>
-                                <div><i style="background: green; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Sedang</div>
-                                <div><i style="background: orange; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Tinggi</div>
-                                <div><i style="background: red; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> S. Tinggi</div>
-            """
-            if is_riau_full:
-                legend_items += """<div><i style="background: #808080; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 5px;"></i> Menunggu Data IoT</div>"""
-
-            return f"""
-            <body style="background-color: #eef2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; box-sizing: border-box;">
-                <div style="background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); width: 100%; max-width: 1450px; height: 95vh; display: flex; flex-direction: column;">
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: center; background-color: #1f77b4; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; flex-shrink: 0;">
-                        <div style="display: flex; align-items: center; gap: 15px;">
-                            {logo_img_tag}
-                            <div>
-                                <h2 style="margin: 0; font-size: 22px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">Dashboard Prediksi Risiko Kebakaran Lahan</h2>
-                                <p style="margin: 5px 0 0 0; font-size: 13px; color: #dceefb;">Integrasi Model Machine Learning, IoT, dan Spatial GIS</p>
-                            </div>
-                        </div>
-                        <div style="text-align: right; font-size: 13px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 6px; box-shadow: inset 0 0 5px rgba(0,0,0,0.1);">
-                            <b style="font-size: 14px;">Domain/Wilayah:</b> {domain_title}<br>
-                            <b>Valid/Berlaku:</b> {tanggal_valid} (Observation)
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; gap: 20px; flex-grow: 1; height: calc(100% - 90px); overflow: hidden;">
-                        
-                        <div style="width: 280px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px; flex-shrink: 0;">
-                            
-                            <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                                <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 10px;">{status_title}</b>
-                                <div style="font-size: 17px; font-weight: bold; color: {marker_color};">{risk_label}</div>
-                            </div>
-
-                            <div style="display: flex; gap: 10px;">
-                                <div style="flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                                    <b style="font-size: 12px; color: #333; display: block; margin-bottom: 10px; width: 100%; text-align: left; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Arah Utara</b>
-                                    <div style="text-align: center;">
-                                        <div style="font-weight: bold; font-size: 15px; color: #333; margin-bottom: 3px;">U</div>
-                                        <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 16px solid red; margin: 0 auto;"></div>
-                                        <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 16px solid #555; margin: 0 auto;"></div>
-                                    </div>
-                                </div>
-                                <div style="flex: 1.5; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                                    <b style="font-size: 12px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 8px;">Legenda Risiko</b>
-                                    <div style="font-size: 11px; line-height: 1.8;">
-                                        {legend_items}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                                <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 5px;">Tindak Lanjut Instansi</b>
-                                <div style="font-size: 12px; line-height: 1.5;">{tl_html}</div>
-                            </div>
-                            
-                            {iot_img_html}
-
-                        </div>
-                        
-                        <div style="flex-grow: 1; border: 3px solid #555; border-radius: 8px; overflow: hidden; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.1);">
-            """
-
-        layout_pekanbaru = build_html_layout("Prov. RIAU - Kota Pekanbaru", "Status Prediksi Saat Ini", is_riau_full=False)
-        layout_riau = build_html_layout("Provinsi RIAU (Pemantauan Skala Penuh)", "Status Pekanbaru (Active Node)", is_riau_full=True)
-
-        raw_map_html = m.get_root().render()
-        raw_map_html_riau = m_riau.get_root().render()
-
-        # Injeksi layout ke dalam HTML map
-        framed_dashboard_pekanbaru = raw_map_html.replace('<body>', layout_pekanbaru).replace('</body>', custom_layout_end)
-        framed_dashboard_riau = raw_map_html_riau.replace('<body>', layout_riau).replace('</body>', custom_layout_end)
-
-        # Eksekusi tampilan peta polos (Pekanbaru) ke layar Streamlit
+        
+        framed_dashboard_html = raw_map_html.replace('<body>', custom_css_and_layout_start).replace('</body>', custom_layout_end)
         folium_static(m, width=450, height=350)
 
-        # Konversi ke Base64
-        b64_pekanbaru = base64.b64encode(framed_dashboard_pekanbaru.encode('utf-8')).decode('utf-8')
-        b64_riau = base64.b64encode(framed_dashboard_riau.encode('utf-8')).decode('utf-8')
+        # Menggunakan Fetch API Blob untuk menghindari Blank Page Browser
+        b64_html = base64.b64encode(framed_dashboard_html.encode('utf-8')).decode('utf-8')
         
-        # Buat Tombol Interaktif Ganda
         custom_button_html = f"""
-        <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-            <button onclick="openMapPekanbaru()" style="width: 100%; padding: 8px 16px; background-color: #ffffff; color: #333; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 14px; transition: 0.3s;" onmouseover="this.style.borderColor='#1f77b4'; this.style.color='#1f77b4'" onmouseout="this.style.borderColor='#ccc'; this.style.color='#333'">
-                🌐 Buka Dashboard Khusus Pekanbaru (Active Node)
-            </button>
-            <button onclick="openMapRiau()" style="width: 100%; padding: 8px 16px; background-color: #ffffff; color: #333; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 14px; transition: 0.3s;" onmouseover="this.style.borderColor='#1f77b4'; this.style.color='#1f77b4'" onmouseout="this.style.borderColor='#ccc'; this.style.color='#333'">
-                🗺️ Buka Dashboard Provinsi Riau (Integrasi Regional)
-            </button>
-        </div>
+        <button onclick="openMap()" style="width: 100%; padding: 8px 16px; background-color: #ffffff; color: #333; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 14px; transition: 0.3s;" onmouseover="this.style.borderColor='#1f77b4'; this.style.color='#1f77b4'" onmouseout="this.style.borderColor='#ccc'; this.style.color='#333'">
+            🌐 Buka Dashboard Pemantauan Terpadu (Pekanbaru)
+        </button>
         
         <script>
-        function openMapPekanbaru() {{
-            const b64Data = "{b64_pekanbaru}";
-            const byteCharacters = atob(b64Data);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {{
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }}
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], {{type: 'text/html;charset=utf-8'}});
-            const url = URL.createObjectURL(blob);
-            window.open(url, '_blank');
-        }}
-
-        function openMapRiau() {{
-            const b64Data = "{b64_riau}";
-            const byteCharacters = atob(b64Data);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {{
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }}
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], {{type: 'text/html;charset=utf-8'}});
-            const url = URL.createObjectURL(blob);
-            window.open(url, '_blank');
+        function openMap() {{
+            const b64Data = "{b64_html}";
+            fetch(`data:text/html;base64,${{b64Data}}`)
+            .then(res => res.blob())
+            .then(blob => {{
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+            }})
+            .catch(err => console.error("Error rendering map:", err));
         }}
         </script>
         """
-        # Render tombol ke Streamlit
-        components.html(custom_button_html, height=100)
+        components.html(custom_button_html, height=50)
+
+
+# =========================================================================
+# === BAGIAN PETA REGIONAL FRAGMENT (PEKANBARU, SIAK, PELALAWAN) ==========
+# =========================================================================
+@st.fragment(run_every=7)
+def peta_regional_fragment():
+    df_raw = load_data()
+    res = preprocess_sensor_data(df_raw)
+    
+    if res[0] is not None and not isinstance(res[0], str):
+        df, clean_df, scaled_all, fitur = res
+        last_row = df.iloc[-1]
+        risk_label_pku = last_row["Prediksi Kebakaran"]
+        
+        waktu_valid = pd.to_datetime(last_row['Waktu'], errors='coerce')
+        if pd.isna(waktu_valid):
+            try:
+                waktu_valid = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
+            except Exception: pass
+            
+        tanggal_valid = waktu_valid.strftime('%d %B %Y, %H:%M WIB') if pd.notna(waktu_valid) else str(last_row['Waktu'])
+        
+        color_map = {
+            "Low / Rendah": "blue",
+            "Moderate / Sedang": "green",
+            "High / Tinggi": "orange",
+            "Very High / Sangat Tinggi": "red"
+        }
+        marker_color_pku = color_map.get(risk_label_pku, "gray")
+
+        # 1. PERSIAPAN PETA (Fokus ke area Pekanbaru, Siak, Pelalawan)
+        regional_coords = [0.5500, 101.9000] 
+        m_regional = folium.Map(location=regional_coords, zoom_start=8, control_scale=True, tiles='OpenStreetMap')
+        Fullscreen(position='topright').add_to(m_regional)
+
+        # 2. BACA GEOJSON DARI CACHE & FILTER HANYA 3 WILAYAH
+        riau_geojson_data = load_riau_geojson()
+        
+        if riau_geojson_data:
+            riau_geojson = copy.deepcopy(riau_geojson_data) 
+            filtered_features = []
+            
+            for feature in riau_geojson['features']:
+                nama_wilayah = feature['properties'].get('nama', '').lower()
+                kab_kota = feature['properties'].get('kab_kota', '').lower()
+                
+                # Cek Pekanbaru (Real-time)
+                if 'pekanbaru' in nama_wilayah or 'pekanbaru' in kab_kota:
+                    feature['properties']['warna_fill'] = marker_color_pku
+                    feature['properties']['tooltip_info'] = f"Status: {risk_label_pku} (Real-time HSEL)"
+                    filtered_features.append(feature)
+                
+                # Cek Siak (Dummy)
+                elif 'siak' in nama_wilayah or 'siak' in kab_kota:
+                    feature['properties']['warna_fill'] = "#9e9e9e" # Abu-abu
+                    feature['properties']['tooltip_info'] = "Status: Menunggu Data IoT"
+                    filtered_features.append(feature)
+                
+                # Cek Pelalawan (Dummy)
+                elif 'pelalawan' in nama_wilayah or 'pelalawan' in kab_kota:
+                    feature['properties']['warna_fill'] = "#9e9e9e" # Abu-abu
+                    feature['properties']['tooltip_info'] = "Status: Menunggu Data IoT"
+                    filtered_features.append(feature)
+
+            # Ganti features asli dengan yang sudah difilter (hanya 3 wilayah) untuk meringankan sistem
+            riau_geojson['features'] = filtered_features
+
+            folium.GeoJson(
+                riau_geojson,
+                style_function=lambda feature: {
+                    'fillColor': feature['properties']['warna_fill'],
+                    'color': '#333333', 
+                    'weight': 2,
+                    'fillOpacity': 0.7 if feature['properties']['warna_fill'] != "#9e9e9e" else 0.4,
+                },
+                tooltip=folium.GeoJsonTooltip(
+                    fields=['nama', 'tooltip_info'], 
+                    aliases=['Kab/Kota:', 'Keterangan:'], 
+                    style="font-weight: bold; font-size: 13px;"
+                )
+            ).add_to(m_regional)
+            
+            # Marker Khusus Pekanbaru
+            pekanbaru_coords = [0.5333, 101.4500]
+            popup_pku = folium.Popup(f"<div style='width: 150px;'><b>Kota Pekanbaru</b><br>Prediksi: {risk_label_pku}</div>", max_width=200)
+            folium.Marker(location=pekanbaru_coords, popup=popup_pku, icon=folium.Icon(color=marker_color_pku, icon="info-sign")).add_to(m_regional)
+
+        # 3. RENDER PETA KE HTML
+        raw_map_html = m_regional.get_root().render()
+
+        # 4. INJEKSI LAYOUT HTML DASHBOARD BARU
+        custom_css_and_layout_start = f"""
+        <body style="background-color: #eef2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; box-sizing: border-box;">
+            <div style="background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); width: 100%; max-width: 1450px; height: 95vh; display: flex; flex-direction: column;">
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; background-color: #2c3e50; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; flex-shrink: 0;">
+                    <div>
+                        <h2 style="margin: 0; font-size: 22px;">Pemantauan Regional (Pekanbaru, Siak, Pelalawan)</h2>
+                        <p style="margin: 5px 0 0 0; font-size: 13px; color: #bdc3c7;">Tahap Perluasan Integrasi Sensor IoT</p>
+                    </div>
+                    <div style="text-align: right; font-size: 13px;">
+                        <b style="font-size: 14px;">Domain:</b> Sebagian Wilayah Riau<br>
+                        <b>Valid/Berlaku:</b> {tanggal_valid}
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 20px; flex-grow: 1; height: calc(100% - 90px); overflow: hidden;">
+                    
+                    <div style="width: 260px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px;">
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                            <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 8px;">Legenda Status Kawasan</b>
+                            <div style="font-size: 12px; line-height: 2.0;">
+                                <div><i style="background: blue; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 8px;"></i> Risiko Rendah</div>
+                                <div><i style="background: green; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 8px;"></i> Risiko Sedang</div>
+                                <div><i style="background: orange; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 8px;"></i> Risiko Tinggi</div>
+                                <div><i style="background: red; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 8px;"></i> Risiko S. Tinggi</div>
+                                <hr style="margin: 8px 0; border: 0; border-top: 1px solid #ccc;">
+                                <div><i style="background: #9e9e9e; width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 8px;"></i> <b>Menunggu Data IoT</b></div>
+                            </div>
+                        </div>
+
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #fff3cd; color: #856404;">
+                            <b style="font-size: 12px;">Catatan Sistem:</b><br>
+                            <span style="font-size: 11px;">Pemantauan <i>real-time</i> aktif di Pekanbaru. Kab. Siak dan Kab. Pelalawan dalam tahap persiapan pemasangan perangkat sensor.</span>
+                        </div>
+                    </div>
+                    
+                    <div style="flex-grow: 1; border: 3px solid #555; border-radius: 8px; overflow: hidden; position: relative;">
+        """
+        
+        custom_layout_end = "</div></div></div></body>"
+        framed_dashboard_html = raw_map_html.replace('<body>', custom_css_and_layout_start).replace('</body>', custom_layout_end)
+
+        # 5. RENDER TOMBOL DENGAN JAVASCRIPT FETCH (Mengatasi Blank Page Browser)
+        b64_html = base64.b64encode(framed_dashboard_html.encode('utf-8')).decode('utf-8')
+        
+        custom_button_html = f"""
+        <button onclick="openMapRegional()" style="width: 100%; padding: 8px 16px; background-color: #e67e22; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 14px; margin-top: 10px; font-weight: bold; transition: 0.3s;" onmouseover="this.style.backgroundColor='#d35400'" onmouseout="this.style.backgroundColor='#e67e22'">
+            🗺️ Buka Dashboard Pemantauan Regional
+        </button>
+        
+        <script>
+        function openMapRegional() {{
+            const b64Data = "{b64_html}";
+            fetch(`data:text/html;base64,${{b64Data}}`)
+            .then(res => res.blob())
+            .then(blob => {{
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+            }})
+            .catch(err => console.error("Error rendering map:", err));
+        }}
+        </script>
+        """
+        components.html(custom_button_html, height=60)
 
 
 # =========================================================================
@@ -862,7 +923,9 @@ def main_dashboard():
         
     with col_tengah:
         st.markdown("<h5 style='text-align: center;'>Visualisasi Peta Lokasi Prediksi Kebakaran</h5>", unsafe_allow_html=True)
+        # Eksekusi Map Pekanbaru dan Regional (Tombol akan muncul berurutan)
         peta_realtime_fragment()
+        peta_regional_fragment()
 
     with col_kanan:
         st.markdown("<h5 style='text-align: center;'>IoT Smart Fire Prediction</h5>", unsafe_allow_html=True)
@@ -935,7 +998,6 @@ def main_dashboard():
             with tab_all:
                 df_melted = df_vis.melt(id_vars=['Waktu_DT'], var_name='Parameter Sensor', value_name='Nilai')
                 
-                # === MODIFIKASI: Menambahkan Satuan ke Label Teks Chart Utama ===
                 satuan_map = {
                     'Suhu (°C)': '°C',
                     'Kelembapan (%)': '%',
@@ -1032,7 +1094,6 @@ main_dashboard()
 # =========================================================================
 # === BAGIAN PENGUJIAN MANUAL & TEKS DENGAN FRAGMENT KHUSUS ===============
 # =========================================================================
-# State management bebas reload/refresh menggunakan key-binding dan on_click callback
 if "man_suhu" not in st.session_state: st.session_state.man_suhu = 30.0
 if "man_kel" not in st.session_state: st.session_state.man_kel = 65.0
 if "man_curah" not in st.session_state: st.session_state.man_curah = 10.0
@@ -1087,7 +1148,6 @@ def manual_prediction_ui():
             f"Prediksi Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True
         )
 
-# State management untuk Prediksi Teks bebas reload
 if "txt_input" not in st.session_state: st.session_state.txt_input = ""
 if "txt_result" not in st.session_state: st.session_state.txt_result = None
 if "txt_preprocessing" not in st.session_state: st.session_state.txt_preprocessing = {}
@@ -1197,7 +1257,6 @@ def text_prediction_ui():
             f"Hasil Prediksi Tingkat Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True
         )
 
-# Render antarmuka pengujian secara terpisah
 manual_prediction_ui()
 text_prediction_ui()
 
