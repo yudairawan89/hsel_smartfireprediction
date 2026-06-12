@@ -733,8 +733,16 @@ def peta_realtime_fragment():
         css_provinsi = custom_css_and_layout_start.replace("[DYNAMIC_WILAYAH_TEXT]", "Provinsi RIAU (Seluruh Kabupaten/Kota)")
         framed_dashboard_provinsi = raw_map_html_provinsi.replace('<body>', css_provinsi).replace('</body>', custom_layout_end)
 
-        # Eksekusi tampilan peta lokal polos di Streamlit
-        folium_static(m_lokal, width=450, height=350)
+        # ---------------------------------------------------------------------
+        # PERBAIKAN RENDER PETA (Anti-Blank & Anti-Crash untuk Fragment)
+        # ---------------------------------------------------------------------
+        # Suntikkan CSS bingkai (border tebal) langsung ke dalam HTML peta lokal
+        border_css = "<style>html, body { margin: 0; padding: 0; } .folium-map { border: 4px solid #444; border-radius: 4px; box-sizing: border-box; }</style>"
+        display_html_lokal = raw_map_html_lokal.replace("</head>", border_css + "</head>")
+        
+        # Eksekusi tampilan menggunakan komponen HTML native yang lebih stabil
+        components.html(display_html_lokal, height=360)
+        # ---------------------------------------------------------------------
 
         # Konversi ke format Base64 untuk pembuatan tab baru HTML
         b64_lokal = base64.b64encode(framed_dashboard_lokal.encode('utf-8')).decode('utf-8')
