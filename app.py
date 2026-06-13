@@ -25,7 +25,7 @@ import cv2
 from ultralytics import YOLO
 
 # === PAGE CONFIG ===
-st.set_page_config(page_title="Smart Fire Command Center", page_icon="🔥", layout="wide")
+st.set_page_config(page_title="Smart Fire Command Center", page_icon="favicon.ico", layout="wide")
 
 # === ROUTING / MANAJEMEN HALAMAN NEW TAB ===
 query_params = st.query_params
@@ -320,14 +320,15 @@ if current_page == "multimodal":
                         
                         popup_html = f"<b>Pekanbaru</b><br>HSEL: {hsel_risk}"
                         folium.Marker(location=[0.5333, 101.4500], popup=popup_html, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m_mini)
+                        
                         folium_static(m_mini, width=360, height=260)
                         
                     with cm2:
                         st.markdown("<div style='font-size:13px; font-weight:bold; color:#555; margin-bottom:5px;'>Alat Node IoT</div>", unsafe_allow_html=True)
                         try:
-                            st.image(Image.open("alat_iot.png"), use_container_width=True)
+                            st.image(Image.open("forestiot4.jpg"), use_container_width=True)
                         except Exception:
-                            st.info("Gambar alat_iot.png tidak ditemukan.")
+                            st.info("Gambar forestiot4.jpg tidak ditemukan.")
                     
                     st.markdown("<hr style='margin:25px 0 15px 0; border: 1px dashed #e0e0e0;'>", unsafe_allow_html=True)
                     
@@ -377,7 +378,7 @@ if current_page == "multimodal":
                         </div>
                         """, unsafe_allow_html=True)
                         
-                    # === 4. PRODUCED BY (DIPERBESAR & LEBIH PROPORIONAL) ===
+                    # === 4. PRODUCED BY ===
                     logo_upi_b64 = get_image_base64("logo upi yptk.png")
                     logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 80px; height: auto;" alt="Logo">' if logo_upi_b64 else ''
                     
@@ -544,6 +545,7 @@ else:
                     arah = factor['shap_val']
 
                     st.markdown(f"**{icon} {factor['fitur'].title()} ({persen:.1f}%)**")
+
                     if persen < 5.0:
                         if arah > 0: st.write("- Memberikan dorongan minor terhadap potensi risiko. Pengaruhnya saat ini tertutupi oleh faktor dominan lainnya.")
                         else: st.write("- Memiliki efek peredaman yang sangat kecil terhadap prediksi saat ini. Kondisinya belum cukup signifikan untuk memengaruhi status lingkungan secara keseluruhan.")
@@ -1119,30 +1121,27 @@ else:
             st.number_input("Kelembaban Tanah (%)", key="man_tanah")
 
         btn_pred, btn_reset, _ = st.columns([1, 1, 8])
-        if btn_pred.button("🔍 Prediksi Manual", use_container_width=True):
-            do_predict_manual()
-            st.rerun()
-        if btn_reset.button("🧼 Reset Manual", use_container_width=True):
-            reset_manual()
-            st.rerun()
+        with btn_pred: st.button("🔍 Prediksi Manual", on_click=do_predict_manual)
+        with btn_reset: st.button("🧼 Reset Manual", on_click=reset_manual)
 
         if st.session_state.manual_result:
             hasil = st.session_state.manual_result
             font, bg = risk_styles.get(hasil, ("black", "white"))
             st.markdown(f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top:15px;'>Prediksi Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True)
 
+    if "txt_input" not in st.session_state: st.session_state.txt_input = ""
     if "txt_result" not in st.session_state: st.session_state.txt_result = None
     if "txt_preprocessing" not in st.session_state: st.session_state.txt_preprocessing = {}
 
     def reset_text():
-        st.session_state.txt_result, st.session_state.txt_preprocessing = None, {}
+        st.session_state.txt_input, st.session_state.txt_result, st.session_state.txt_preprocessing = "", None, {}
 
-    def do_predict_text(input_text):
-        if input_text.strip() == "": st.warning("Harap masukkan deskripsi teks.")
-        elif vectorizer is None or model_text is None: st.error("Model teks gagal dimuat. Pastikan file 'tfidf_vectorizer.joblib' dan 'stacking_text_model.joblib' tersedia di direktori.")
+    def do_predict_text():
+        if st.session_state.txt_input.strip() == "": st.warning("Harap masukkan deskripsi teks.")
+        elif vectorizer is None or model_text is None: st.error("Model teks gagal dimuat.")
         else:
             try:
-                raw_text = input_text
+                raw_text = st.session_state.txt_input
                 text_lower = raw_text.lower()
                 text_clean = re.sub(r'[^a-zA-Z\s]', '', text_lower)
                 text_stopword = stopword_remover.remove(text_clean)
@@ -1172,19 +1171,11 @@ else:
     @st.fragment
     def text_prediction_ui():
         st.markdown("<div class='section-title' style='margin-top: 20px;'>Pengujian Menggunakan Data Teks</div>", unsafe_allow_html=True)
-        
-        current_text = st.text_area("Masukkan deskripsi lingkungan (misal: Cuaca hari ini sangat panas dan kering tanpa hujan):", value=st.session_state.get("txt_input_val", ""), height=120)
-        
+        st.text_area("Masukkan deskripsi lingkungan:", key="txt_input", height=120)
+
         btn_pred_text, btn_reset_text, _ = st.columns([1, 1, 8])
-        if btn_pred_text.button("🔍 Prediksi Teks", use_container_width=True):
-            st.session_state.txt_input_val = current_text
-            do_predict_text(current_text)
-            st.rerun()
-            
-        if btn_reset_text.button("🧼 Reset Teks", use_container_width=True):
-            st.session_state.txt_input_val = ""
-            reset_text()
-            st.rerun()
+        with btn_pred_text: st.button("🔍 Prediksi Teks", on_click=do_predict_text)
+        with btn_reset_text: st.button("🧼 Reset Teks", on_click=reset_text)
             
         if st.session_state.txt_result:
             with st.expander("🛠️ Klik untuk melihat hasil setiap tahapan Pre-processing & Keputusan Model", expanded=False):
@@ -1198,9 +1189,9 @@ else:
                     st.markdown("**6. Ekstraksi Fitur (TF-IDF)**")
                     df_tfidf_display = steps.get("tfidf_df")
                     if df_tfidf_display is not None and not df_tfidf_display.empty: st.dataframe(df_tfidf_display, use_container_width=True)
-                    else: st.warning("Kata-kata pada input ini tidak dikenali dalam model vocabulary.")
+                    else: st.warning("Kata-kata pada input ini tidak dikenali.")
 
-                    st.markdown("**7. Probabilitas Model HSEL**")
+                    st.markdown("**7. Probabilitas HSEL**")
                     prob_dict = steps.get("prob_dict")
                     if prob_dict:
                         for label, prob in prob_dict.items():
@@ -1209,7 +1200,7 @@ else:
 
             hasil = st.session_state.txt_result
             font, bg = risk_styles.get(hasil, ("black", "white"))
-            st.markdown(f"<p style='color:{font}; background-color:{bg}; padding:15px; border-radius:8px; margin-top: 15px; font-size: 16px; font-weight:bold; text-align:center;'>Hasil Prediksi Tingkat Risiko Kebakaran: <span style='text-decoration:underline;'>{hasil}</span></p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top: 15px; font-size: 16px;'>Hasil Prediksi Tingkat Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True)
 
     manual_prediction_ui()
     text_prediction_ui()
