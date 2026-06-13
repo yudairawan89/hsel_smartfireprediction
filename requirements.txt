@@ -13,7 +13,3 @@ requests
 ultralytics
 opencv-python-headless
 Pillow
-libgl1
-libglib2.0-0
-opencv-python-headless
-ultralytics
