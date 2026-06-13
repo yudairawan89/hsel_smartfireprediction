@@ -406,7 +406,7 @@ if current_page == "multimodal":
                 else:
                     st.warning("⚠️ Data IoT Terputus atau Tidak Tersedia.")
                     
-                # === 4. PRODUCED BY ===
+                # === 4. PRODUCED BY (SIDE BY SIDE FLEXBOX) ===
                 logo_upi_b64 = get_image_base64("logo upi yptk.png")
                 logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 60px; height: auto;" alt="Logo">' if logo_upi_b64 else ''
                 
@@ -468,147 +468,64 @@ else:
 
     st.markdown("<hr style='margin-top: 10px; margin-bottom: 25px;'>", unsafe_allow_html=True)
 
-    # === BAGIAN REALTIME FRAGMENT (KOLOM KIRI YANG REFRESH 7 DETIK) ==========
+    # === BAGIAN PETA REALTIME PEKANBARU FRAGMENT ===========
     @st.fragment(run_every=7)
-    def indikator_kiri_realtime():
+    def peta_realtime_ui():
         df_raw = load_data()
         res = preprocess_sensor_data(df_raw)
         
-        if res[0] is None:
-            st.warning("Data belum tersedia atau gagal dimuat dari Google Sheets.")
-            return
-        if isinstance(res[0], str) and res[0] == "error":
-            st.error("Kolom wajib tidak ditemukan di Sheets: " + ", ".join(res[1]))
-            return
+        if res[0] is not None and not isinstance(res[0], str):
+            df, clean_df, scaled_all, fitur = res
+            last_row = df.iloc[-1]
+            last_num = clean_df.iloc[-1]
+            risk_label = last_row["Prediksi Kebakaran"]
             
-        df, clean_df, scaled_all, fitur = res
-        last_row = df.iloc[-1]
-        last_num = clean_df.iloc[-1]
-        waktu = pd.to_datetime(last_row['Waktu'], errors='coerce')
-        if pd.isna(waktu):
-            try: waktu = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
-            except Exception: waktu = None
+            pekanbaru_coords = [0.5333, 101.4500] 
+            marker_color = {"Low / Rendah": "blue", "Moderate / Sedang": "green", "High / Tinggi": "orange", "Very High / Sangat Tinggi": "red"}.get(risk_label, "gray")
 
-        if isinstance(waktu, pd.Timestamp):
-            hari = convert_day_to_indonesian(waktu.strftime('%A'))
-            bulan = convert_month_to_indonesian(waktu.strftime('%B'))
-            tanggal = waktu.strftime(f'%d {bulan} %Y')
-        else:
-            hari, tanggal = "-", str(last_row['Waktu'])
-
-        risk_label = last_row["Prediksi Kebakaran"]
-        font, bg = risk_styles.get(risk_label, ("black", "white"))
-
-        sensor_df = pd.DataFrame({
-            "Variabel": fitur,
-            "Value": [f"{float(last_num[col]):.1f}" for col in fitur]
-        })
-
-        st.markdown("<h5 style='text-align: center;'>Data Sensor Realtime</h5>", unsafe_allow_html=True)
-        sensor_html = "<table style='width: 100%; border-collapse: collapse;'>"
-        sensor_html += "<thead><tr><th>Variabel</th><th>Value</th></tr></thead><tbody>"
-        for i in range(len(sensor_df)):
-            var = sensor_df.iloc[i, 0]
-            val = sensor_df.iloc[i, 1]
-            sensor_html += f"<tr><td style='padding:6px;'>{var}</td><td style='padding:6px;'>{val}</td></tr>"
-        sensor_html += "</tbody></table>"
-        st.markdown(sensor_html, unsafe_allow_html=True)
-
-        st.markdown(
-            f"<p style='background-color:{bg}; color:{font}; padding:10px; border-radius:8px; font-weight:bold; margin-top: 15px;'>"
-            f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran: "
-            f"<span style='text-decoration: underline; font-size: 22px;'>{risk_label}</span></p>",
-            unsafe_allow_html=True
-        )
-
-        with st.expander("📊 Analisis Keputusan Model (XAI)"):
-            st.markdown("<span style='font-size:14px; color:gray;'>Grafik di bawah menunjukkan seberapa besar setiap parameter sensor berkontribusi terhadap prediksi saat ini.</span>", unsafe_allow_html=True)
             try:
-                data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
-                background_data = pd.DataFrame(shap.sample(scaled_all, 50), columns=fitur)
-                explainer = shap.Explainer(model.predict, background_data)
-                shap_values = explainer(data_realtime_scaled)
-                data_realtime_raw = clean_df.iloc[-1:].values
-                shap_values.data = data_realtime_raw
+                riau_geojson_data = load_riau_geojson()
+                pekanbaru_geojson = {"type": "FeatureCollection", "features": []}
+                if riau_geojson_data:
+                    for feature in riau_geojson_data['features']:
+                        nama_wilayah = feature['properties'].get('nama', '').lower()
+                        kab_kota = feature['properties'].get('kab_kota', '').lower()
+                        if 'pekanbaru' in nama_wilayah or 'pekanbaru' in kab_kota:
+                            pekanbaru_geojson["features"].append(feature)
+                            break
+            except Exception: pekanbaru_geojson = None
 
-                plt.rcParams.update({'font.size': 14})
-                fig, ax = plt.subplots(figsize=(10, 6))
-                shap.plots.waterfall(shap_values[0], show=False)
-                total_abs_shap = sum(abs(v) for v in shap_values[0].values)
+            popup_text = folium.Popup(f"""
+                <div style='width: 230px; font-size: 13px; line-height: 1.5;'>
+                <b>Wilayah:</b> Kota Pekanbaru<br>
+                <b>Prediksi:</b> {risk_label}<br>
+                <b>Suhu:</b> {float(last_num[fitur[0]]):.1f} °C<br>
+                <b>Kelembapan:</b> {float(last_num[fitur[1]]):.1f} %<br>
+                <b>Curah Hujan:</b> {float(last_num[fitur[2]]):.1f} mm<br>
+                <b>Kecepatan Angin:</b> {float(last_num[fitur[3]]):.1f} m/s<br>
+                <b>Kelembaban Tanah:</b> {float(last_num[fitur[4]]):.1f} %
+                </div>
+            """, max_width=250)
 
-                for text in ax.texts:
-                    text_str = text.get_text().strip()
-                    clean_str = text_str.replace('−', '-')
-                    try:
-                        val = float(clean_str)
-                        if total_abs_shap > 0:
-                            pct = (abs(val) / total_abs_shap) * 100
-                            text.set_text(f"{text_str} ({pct:.1f}%)")
-                    except ValueError: pass
+            m = folium.Map(location=pekanbaru_coords, zoom_start=9.5, control_scale=True, tiles='OpenStreetMap')
 
-                st.pyplot(fig, bbox_inches='tight', dpi=300)
-                plt.close(fig) 
-                plt.clf()
-                plt.rcParams.update({'font.size': 10})
+            formatter = "function(num) {return L.Util.formatNum(num, 5) + ' &deg;';};"
+            MousePosition(position="bottomleft", separator=" | ", empty_string="Koordinat tidak tersedia", lng_first=True, num_digits=20, prefix="Posisi:", lat_formatter=formatter, lng_formatter=formatter).add_to(m)
+            Fullscreen(position='topright').add_to(m)
 
-                shap_vals_arr = shap_values[0].values
-                kontribusi = []
-                for nama_f, shap_v in zip(fitur, shap_vals_arr):
-                    pct_f = (abs(float(shap_v)) / total_abs_shap) * 100 if total_abs_shap > 0 else 0.0
-                    kontribusi.append({"fitur": nama_f, "shap_val": float(shap_v), "pct": pct_f})
-                kontribusi = sorted(kontribusi, key=lambda x: x["pct"], reverse=True)
+            if pekanbaru_geojson and pekanbaru_geojson["features"]:
+                folium.GeoJson(pekanbaru_geojson, style_function=lambda feature, color=marker_color: {'fillColor': color, 'color': color, 'weight': 2, 'fillOpacity': 0.4}, tooltip=folium.GeoJsonTooltip(fields=['nama'], aliases=['Wilayah:'], style="font-weight: bold; font-size: 14px;")).add_to(m)
 
-                st.markdown("<h4 style='margin-top: 25px;'>Analisis Detail Keputusan Model (XAI)</h4>", unsafe_allow_html=True)
-                if risk_label == "Low / Rendah": st.success("Kondisi lingkungan saat ini terpantau **sangat aman dan stabil**. Berdasarkan analisis *Explainable AI* (SHAP), berikut adalah dominasi faktor-faktor alam yang sukses meredam potensi kebakaran:")
-                elif risk_label == "Moderate / Sedang": st.info("Kondisi lingkungan saat ini terpantau **cukup stabil namun memerlukan pemantauan berkala**. Berikut adalah rincian faktor yang memengaruhi keseimbangan risiko saat ini:")
-                elif risk_label == "High / Tinggi": st.warning("Kondisi lingkungan saat ini terpantau **kritis**. Berdasarkan analisis *Explainable AI* (SHAP), terdapat ancaman bahaya yang dipicu oleh memburuknya faktor-faktor berikut:")
-                elif risk_label == "Very High / Sangat Tinggi": st.error("Kondisi lingkungan saat ini berada pada fase **SANGAT EKSTREM**. Faktor-faktor alam berikut secara masif mendorong eskalasi kebakaran lahan ke tingkat bahaya tertinggi:")
+            folium.Marker(location=pekanbaru_coords, popup=popup_text, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m)
+            folium_static(m, width=450, height=350)
 
-                icons = ["🔴", "🟠", "🟡", "🟢", "⚪"]
-                for i, factor in enumerate(kontribusi):
-                    icon = icons[i] if i < len(icons) else "⚪"
-                    nama_fitur = str(factor['fitur']).lower()
-                    persen = factor['pct']
-                    arah = factor['shap_val']
-
-                    st.markdown(f"**{icon} {factor['fitur'].title()} ({persen:.1f}%)**")
-
-                    if persen < 5.0:
-                        if arah > 0: st.write("- Memberikan dorongan minor terhadap potensi risiko. Pengaruhnya saat ini tertutupi oleh faktor dominan lainnya.")
-                        else: st.write("- Memiliki efek peredaman yang sangat kecil terhadap prediksi saat ini. Kondisinya belum cukup signifikan untuk memengaruhi status lingkungan secara keseluruhan.")
-                    else:
-                        if "tanah" in nama_fitur:
-                            if arah > 0: st.write("- **Meningkatkan Risiko:** Merupakan faktor pendorong utama. Kelembaban tanah yang rendah menunjukkan kondisi lahan yang teramat kering.")
-                            else: st.write("- **Meredam Risiko:** Kelembaban tanah terdeteksi cukup tinggi (basah/lembab). Bertindak sebagai tameng alami.")
-                        elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur:
-                            if arah > 0: st.write("- **Meningkatkan Risiko:** Udara yang kering mempercepat proses pengeringan bahan bakar alami.")
-                            else: st.write("- **Meredam Risiko:** Tingkat kelembapan udara yang tinggi membantu menjaga kebasahan partikel.")
-                        elif "angin" in nama_fitur or "ff" in nama_fitur:
-                            if arah > 0: st.write("- **Mempercepat Eskalasi:** Kecepatan angin saat ini berisiko memperluas area kebakaran dengan sangat cepat.")
-                            else: st.write("- **Kondisi Stabil:** Pergerakan angin yang relatif lambat dan tenang tidak memberikan ancaman berarti.")
-                        elif "suhu" in nama_fitur or "temperatur" in nama_fitur or "tavg" in nama_fitur:
-                            if arah > 0: st.write("- **Meningkatkan Risiko:** Suhu lingkungan yang sangat panas memicu penguapan air dari vegetasi.")
-                            else: st.write("- **Meredam Risiko:** Suhu udara yang tergolong sejuk atau normal menjaga stabilitas termal lingkungan.")
-                        elif "hujan" in nama_fitur or "rr" in nama_fitur:
-                            if arah > 0: st.write("- **Meningkatkan Risiko:** Ketiadaan curah hujan menghilangkan faktor pendingin alami utama.")
-                            else: st.write("- **Meredam Risiko:** Curah hujan yang turun merupakan faktor pendingin krusial.")
-                        else:
-                            if arah > 0: st.write("- Secara kalkulasi sistem berkontribusi dalam meningkatkan potensi risiko kebakaran.")
-                            else: st.write("- Secara kalkulasi sistem berkontribusi menstabilkan potensi risiko kebakaran.")
-            except Exception as e:
-                st.error(f"Visualisasi XAI belum dapat diproses: {e}")
-
-        with st.expander("Tindak Lanjut Instansi"):
-            if risk_label == "Low / Rendah": st.markdown("""<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:15px; line-height: 1.6;'><li>Monitoring rutin kondisi lingkungan</li><li>Patroli berkala ringan</li><li>Edukasi preventif kepada masyarakat</li><li>Dokumentasi dan pelaporan kondisi normal</li></ul>""", unsafe_allow_html=True)
-            elif risk_label == "Moderate / Sedang": st.markdown("""<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:15px; line-height: 1.6;'><li>Peningkatan frekuensi patroli</li><li>Penyampaian peringatan dini terbatas</li><li>Koordinasi internal BPBD dan aparat desa</li><li>Pengawasan aktivitas pembakaran terbuka</li></ul>""", unsafe_allow_html=True)
-            elif risk_label == "High / Tinggi": st.markdown("""<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:15px; line-height: 1.6;'><li>Aktivasi pos siaga tingkat lokal</li><li>Penempatan personel siaga di titik rawan</li><li>Koordinasi dengan TNI/Polri dan Manggala Agni</li><li>Peringatan dini terbuka masyarakat</li><li>Penyiapan peralatan pemadaman awal</li></ul>""", unsafe_allow_html=True)
-            elif risk_label == "Very High / Sangat Tinggi": st.markdown("""<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:15px; line-height: 1.6;'><li>Status siaga darurat tingkat lokal</li><li>Aktivasi penuh posko tanggap darurat</li><li>Mobilisasi tim pemantauan dan pemadam</li><li>Koordinasi lintas sektor (BPBD, TNI, Polri, DLH)</li><li>Penyebaran peringatan dini melalui media resmi</li><li>Pengetatan larangan pembakaran terbuka</li></ul>""", unsafe_allow_html=True)
-
-    # === BAGIAN PETA & TOMBOL GABUNGAN FRAGMENT ===========
-    @st.fragment(run_every=7)
-    def peta_dan_tombol_fragment():
+    # === PEMBUATAN BASE64 PETA (DIPISAH DARI REFRESH AGAR TOMBOL TIDAK BERKEDIP) ===
+    def render_map_buttons():
         df_raw = load_data()
         res = preprocess_sensor_data(df_raw)
+        
+        b64_html_1 = ""
+        b64_html_2 = ""
         
         if res[0] is not None and not isinstance(res[0], str):
             df, clean_df, scaled_all, fitur = res
@@ -672,13 +589,13 @@ else:
                 xai_html = "<i>Data XAI belum siap dimuat.</i>"
 
             if risk_label == "Low / Rendah":
-                tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Monitoring rutin kondisi lingkungan</li><li>Patroli berkala ringan</li><li>Edukasi preventif kepada masyarakat</li><li>Dokumentasi dan pelaporan kondisi normal</li></ul>"
+                tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:15px; line-height: 1.6;'><li>Monitoring rutin kondisi lingkungan</li><li>Patroli berkala ringan</li><li>Edukasi preventif kepada masyarakat</li><li>Dokumentasi dan pelaporan kondisi normal</li></ul>"
             elif risk_label == "Moderate / Sedang":
-                tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Peningkatan frekuensi patroli</li><li>Penyampaian peringatan dini terbatas</li><li>Koordinasi internal BPBD dan aparat desa</li><li>Pengawasan aktivitas pembakaran terbuka</li></ul>"
+                tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:15px; line-height: 1.6;'><li>Peningkatan frekuensi patroli</li><li>Penyampaian peringatan dini terbatas</li><li>Koordinasi internal BPBD dan aparat desa</li><li>Pengawasan aktivitas pembakaran terbuka</li></ul>"
             elif risk_label == "High / Tinggi":
-                tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Aktivasi pos siaga tingkat lokal</li><li>Penempatan personel siaga di titik rawan</li><li>Koordinasi dengan TNI/Polri dan Manggala Agni</li><li>Peringatan dini terbuka masyarakat</li><li>Penyiapan peralatan pemadaman awal</li></ul>"
+                tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:15px; line-height: 1.6;'><li>Aktivasi pos siaga tingkat lokal</li><li>Penempatan personel siaga di titik rawan</li><li>Koordinasi dengan TNI/Polri dan Manggala Agni</li><li>Peringatan dini terbuka masyarakat</li><li>Penyiapan peralatan pemadaman awal</li></ul>"
             else:
-                tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Status siaga darurat tingkat lokal</li><li>Aktivasi penuh posko tanggap darurat</li><li>Mobilisasi tim pemantauan dan pemadam</li><li>Koordinasi lintas sektor (BPBD, TNI, Polri, DLH)</li><li>Penyebaran peringatan dini melalui media resmi</li><li>Pengetatan larangan pembakaran terbuka</li></ul>"
+                tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:15px; line-height: 1.6;'><li>Status siaga darurat tingkat lokal</li><li>Aktivasi penuh posko tanggap darurat</li><li>Mobilisasi tim pemantauan dan pemadam</li><li>Koordinasi lintas sektor (BPBD, TNI, Polri, DLH)</li><li>Penyebaran peringatan dini melalui media resmi</li><li>Pengetatan larangan pembakaran terbuka</li></ul>"
 
             try:
                 riau_geojson_data = load_riau_geojson()
@@ -771,7 +688,7 @@ else:
 
                             <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
                                 <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 5px;">Tindak Lanjut Instansi</b>
-                                <div style="font-size: 12px; line-height: 1.5;">{tl_html}</div>
+                                <div style="font-size: 15px; line-height: 1.6;">{tl_html}</div>
                             </div>
                         </div>
                         
@@ -916,45 +833,16 @@ else:
             framed_dashboard_html_2 = raw_map_html_2.replace('<body>', custom_css_and_layout_start_2).replace('</body>', custom_layout_end_2)
             b64_html_2 = base64.b64encode(framed_dashboard_html_2.encode('utf-8')).decode('utf-8')
 
-            # Render UI
-            folium_static(m1, width=450, height=350)
-            st.markdown("<div style='margin-top:15px;'></div>", unsafe_allow_html=True)
-            folium_static(m2, width=450, height=350)
-            
-            # --- 3 TOMBOL GABUNGAN (DIRAPATKAN & ELEGAN) ---
+            # --- 3 TOMBOL GABUNGAN (DIRAPATKAN & ELEGAN) DILUAR FRAGMENT ---
             custom_button_html = f"""
             <style>
-                .btn-multi {{
-                    width: 100%; padding: 12px 16px; 
-                    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); 
-                    color: #ffffff; border: none; border-radius: 8px; 
-                    cursor: pointer; font-family: 'Segoe UI', Tahoma, sans-serif; 
-                    font-size: 14px; font-weight: bold; 
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-                    transition: all 0.3s ease;
-                }}
+                .btn-multi {{ width: 100%; padding: 12px 16px; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: #ffffff; border: none; border-radius: 8px; cursor: pointer; font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 14px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: all 0.3s ease; }}
                 .btn-multi:hover {{ transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.3); }}
                 
-                .btn-pku {{
-                    width: 100%; padding: 12px 16px; 
-                    background-color: #ffffff; color: #1f77b4; 
-                    border: 2px solid #1f77b4; border-radius: 8px; 
-                    cursor: pointer; font-family: 'Segoe UI', Tahoma, sans-serif; 
-                    font-size: 14px; font-weight: bold; 
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-                    transition: all 0.3s ease;
-                }}
-                .btn-pku:hover {{ background-color: #f0f8ff; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(31,119,180,0.2); }}
+                .btn-pku {{ width: 100%; padding: 12px 16px; background-color: #1f77b4; color: #ffffff; border: none; border-radius: 8px; cursor: pointer; font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 14px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: all 0.3s ease; }}
+                .btn-pku:hover {{ background-color: #175a8a; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(31,119,180,0.3); }}
                 
-                .btn-reg {{
-                    width: 100%; padding: 12px 16px; 
-                    background-color: #e67e22; color: #ffffff; 
-                    border: none; border-radius: 8px; 
-                    cursor: pointer; font-family: 'Segoe UI', Tahoma, sans-serif; 
-                    font-size: 14px; font-weight: bold; 
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-                    transition: all 0.3s ease;
-                }}
+                .btn-reg {{ width: 100%; padding: 12px 16px; background-color: #e67e22; color: #ffffff; border: none; border-radius: 8px; cursor: pointer; font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 14px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: all 0.3s ease; }}
                 .btn-reg:hover {{ background-color: #d35400; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(230,126,34,0.3); }}
             </style>
             
@@ -974,6 +862,142 @@ else:
             components.html(custom_button_html, height=210)
 
 
+    @st.fragment(run_every=7)
+    def indikator_kiri_realtime():
+        df_raw = load_data()
+        res = preprocess_sensor_data(df_raw)
+        
+        if res[0] is None:
+            st.warning("Data belum tersedia atau gagal dimuat dari Google Sheets.")
+            return
+        if isinstance(res[0], str) and res[0] == "error":
+            st.error("Kolom wajib tidak ditemukan di Sheets: " + ", ".join(res[1]))
+            return
+            
+        df, clean_df, scaled_all, fitur = res
+        last_row = df.iloc[-1]
+        last_num = clean_df.iloc[-1]
+        waktu = pd.to_datetime(last_row['Waktu'], errors='coerce')
+        if pd.isna(waktu):
+            try: waktu = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
+            except Exception: waktu = None
+
+        if isinstance(waktu, pd.Timestamp):
+            hari = convert_day_to_indonesian(waktu.strftime('%A'))
+            bulan = convert_month_to_indonesian(waktu.strftime('%B'))
+            tanggal = waktu.strftime(f'%d {bulan} %Y')
+        else:
+            hari, tanggal = "-", str(last_row['Waktu'])
+
+        risk_label = last_row["Prediksi Kebakaran"]
+        font, bg = risk_styles.get(risk_label, ("black", "white"))
+
+        sensor_df = pd.DataFrame({
+            "Variabel": fitur,
+            "Value": [f"{float(last_num[col]):.1f}" for col in fitur]
+        })
+
+        st.markdown("<h5 style='text-align: center;'>Data Sensor Realtime</h5>", unsafe_allow_html=True)
+        sensor_html = "<table style='width: 100%; border-collapse: collapse;'>"
+        sensor_html += "<thead><tr><th>Variabel</th><th>Value</th></tr></thead><tbody>"
+        for i in range(len(sensor_df)):
+            var = sensor_df.iloc[i, 0]
+            val = sensor_df.iloc[i, 1]
+            sensor_html += f"<tr><td style='padding:6px;'>{var}</td><td style='padding:6px;'>{val}</td></tr>"
+        sensor_html += "</tbody></table>"
+        st.markdown(sensor_html, unsafe_allow_html=True)
+
+        st.markdown(
+            f"<p style='background-color:{bg}; color:{font}; padding:10px; border-radius:8px; font-weight:bold; margin-top: 15px;'>"
+            f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran: "
+            f"<span style='text-decoration: underline; font-size: 22px;'>{risk_label}</span></p>",
+            unsafe_allow_html=True
+        )
+
+        with st.expander("📊 Analisis Keputusan Model (XAI)"):
+            st.markdown("<span style='font-size:14px; color:gray;'>Grafik di bawah menunjukkan seberapa besar setiap parameter sensor berkontribusi terhadap prediksi saat ini.</span>", unsafe_allow_html=True)
+            try:
+                data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
+                background_data = pd.DataFrame(shap.sample(scaled_all, 50), columns=fitur)
+                explainer = shap.Explainer(model.predict, background_data)
+                shap_values = explainer(data_realtime_scaled)
+                data_realtime_raw = clean_df.iloc[-1:].values
+                shap_values.data = data_realtime_raw
+
+                plt.rcParams.update({'font.size': 14})
+                fig, ax = plt.subplots(figsize=(10, 6))
+                shap.plots.waterfall(shap_values[0], show=False)
+                total_abs_shap = sum(abs(v) for v in shap_values[0].values)
+
+                for text in ax.texts:
+                    text_str = text.get_text().strip()
+                    clean_str = text_str.replace('−', '-')
+                    try:
+                        val = float(clean_str)
+                        if total_abs_shap > 0:
+                            pct = (abs(val) / total_abs_shap) * 100
+                            text.set_text(f"{text_str} ({pct:.1f}%)")
+                    except ValueError: pass
+
+                st.pyplot(fig, bbox_inches='tight', dpi=300)
+                plt.close(fig) 
+                plt.clf()
+                plt.rcParams.update({'font.size': 10})
+
+                shap_vals_arr = shap_values[0].values
+                kontribusi = []
+                for nama_f, shap_v in zip(fitur, shap_vals_arr):
+                    pct_f = (abs(float(shap_v)) / total_abs_shap) * 100 if total_abs_shap > 0 else 0.0
+                    kontribusi.append({"fitur": nama_f, "shap_val": float(shap_v), "pct": pct_f})
+                kontribusi = sorted(kontribusi, key=lambda x: x["pct"], reverse=True)
+
+                st.markdown("<h4 style='margin-top: 25px;'>Analisis Detail Keputusan Model (XAI)</h4>", unsafe_allow_html=True)
+                if risk_label == "Low / Rendah": st.success("Kondisi lingkungan saat ini terpantau **sangat aman dan stabil**. Berdasarkan analisis *Explainable AI* (SHAP), berikut adalah dominasi faktor-faktor alam yang sukses meredam potensi kebakaran:")
+                elif risk_label == "Moderate / Sedang": st.info("Kondisi lingkungan saat ini terpantau **cukup stabil namun memerlukan pemantauan berkala**. Berikut adalah rincian faktor yang memengaruhi keseimbangan risiko saat ini:")
+                elif risk_label == "High / Tinggi": st.warning("Kondisi lingkungan saat ini terpantau **kritis**. Berdasarkan analisis *Explainable AI* (SHAP), terdapat ancaman bahaya yang dipicu oleh memburuknya faktor-faktor berikut:")
+                elif risk_label == "Very High / Sangat Tinggi": st.error("Kondisi lingkungan saat ini berada pada fase **SANGAT EKSTREM**. Faktor-faktor alam berikut secara masif mendorong eskalasi kebakaran lahan ke tingkat bahaya tertinggi:")
+
+                icons = ["🔴", "🟠", "🟡", "🟢", "⚪"]
+                for i, factor in enumerate(kontribusi):
+                    icon = icons[i] if i < len(icons) else "⚪"
+                    nama_fitur = str(factor['fitur']).lower()
+                    persen = factor['pct']
+                    arah = factor['shap_val']
+
+                    st.markdown(f"**{icon} {factor['fitur'].title()} ({persen:.1f}%)**")
+
+                    if persen < 5.0:
+                        if arah > 0: st.write("- Memberikan dorongan minor terhadap potensi risiko. Pengaruhnya saat ini tertutupi oleh faktor dominan lainnya.")
+                        else: st.write("- Memiliki efek peredaman yang sangat kecil terhadap prediksi saat ini. Kondisinya belum cukup signifikan untuk memengaruhi status lingkungan secara keseluruhan.")
+                    else:
+                        if "tanah" in nama_fitur:
+                            if arah > 0: st.write("- **Meningkatkan Risiko:** Merupakan faktor pendorong utama. Kelembaban tanah yang rendah menunjukkan kondisi lahan yang teramat kering.")
+                            else: st.write("- **Meredam Risiko:** Kelembaban tanah terdeteksi cukup tinggi (basah/lembab). Bertindak sebagai tameng alami.")
+                        elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur:
+                            if arah > 0: st.write("- **Meningkatkan Risiko:** Udara yang kering mempercepat proses pengeringan bahan bakar alami.")
+                            else: st.write("- **Meredam Risiko:** Tingkat kelembapan udara yang tinggi membantu menjaga kebasahan partikel.")
+                        elif "angin" in nama_fitur or "ff" in nama_fitur:
+                            if arah > 0: st.write("- **Mempercepat Eskalasi:** Kecepatan angin saat ini berisiko memperluas area kebakaran dengan sangat cepat.")
+                            else: st.write("- **Kondisi Stabil:** Pergerakan angin yang relatif lambat dan tenang tidak memberikan ancaman berarti.")
+                        elif "suhu" in nama_fitur or "temperatur" in nama_fitur or "tavg" in nama_fitur:
+                            if arah > 0: st.write("- **Meningkatkan Risiko:** Suhu lingkungan yang sangat panas memicu penguapan air dari vegetasi.")
+                            else: st.write("- **Meredam Risiko:** Suhu udara yang tergolong sejuk atau normal menjaga stabilitas termal lingkungan.")
+                        elif "hujan" in nama_fitur or "rr" in nama_fitur:
+                            if arah > 0: st.write("- **Meningkatkan Risiko:** Ketiadaan curah hujan menghilangkan faktor pendingin alami utama.")
+                            else: st.write("- **Meredam Risiko:** Curah hujan yang turun merupakan faktor pendingin krusial.")
+                        else:
+                            if arah > 0: st.write("- Secara kalkulasi sistem berkontribusi dalam meningkatkan potensi risiko kebakaran.")
+                            else: st.write("- Secara kalkulasi sistem berkontribusi menstabilkan potensi risiko kebakaran.")
+            except Exception as e:
+                st.error(f"Visualisasi XAI belum dapat diproses: {e}")
+
+        with st.expander("Tindak Lanjut Instansi"):
+            if risk_label == "Low / Rendah": st.markdown("""<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:15px; line-height: 1.6;'><li>Monitoring rutin kondisi lingkungan</li><li>Patroli berkala ringan</li><li>Edukasi preventif kepada masyarakat</li><li>Dokumentasi dan pelaporan kondisi normal</li></ul>""", unsafe_allow_html=True)
+            elif risk_label == "Moderate / Sedang": st.markdown("""<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:15px; line-height: 1.6;'><li>Peningkatan frekuensi patroli</li><li>Penyampaian peringatan dini terbatas</li><li>Koordinasi internal BPBD dan aparat desa</li><li>Pengawasan aktivitas pembakaran terbuka</li></ul>""", unsafe_allow_html=True)
+            elif risk_label == "High / Tinggi": st.markdown("""<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:15px; line-height: 1.6;'><li>Aktivasi pos siaga tingkat lokal</li><li>Penempatan personel siaga di titik rawan</li><li>Koordinasi dengan TNI/Polri dan Manggala Agni</li><li>Peringatan dini terbuka masyarakat</li><li>Penyiapan peralatan pemadaman awal</li></ul>""", unsafe_allow_html=True)
+            elif risk_label == "Very High / Sangat Tinggi": st.markdown("""<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:15px; line-height: 1.6;'><li>Status siaga darurat tingkat lokal</li><li>Aktivasi penuh posko tanggap darurat</li><li>Mobilisasi tim pemantauan dan pemadam</li><li>Koordinasi lintas sektor (BPBD, TNI, Polri, DLH)</li><li>Penyebaran peringatan dini melalui media resmi</li><li>Pengetatan larangan pembakaran terbuka</li></ul>""", unsafe_allow_html=True)
+
+
     # === BAGIAN UTAMA DASHBOARD =====================
     def main_dashboard():
         st.markdown("<div class='section-title'>Hasil Prediksi Data Realtime</div>", unsafe_allow_html=True)
@@ -988,7 +1012,10 @@ else:
             
         with col_tengah:
             st.markdown("<h5 style='text-align: center;'>Visualisasi Peta Lokasi Prediksi Kebakaran</h5>", unsafe_allow_html=True)
-            peta_dan_tombol_fragment()
+            peta_realtime_fragment()
+            
+            # --- RENDER 3 TOMBOL SECARA STATIS ---
+            render_map_buttons()
 
         with col_kanan:
             st.markdown("<h5 style='text-align: center;'>IoT Smart Fire Prediction</h5>", unsafe_allow_html=True)
@@ -1124,11 +1151,7 @@ else:
     if "manual_result" not in st.session_state: st.session_state.manual_result = None
 
     def reset_manual():
-        st.session_state.man_suhu = 0.0
-        st.session_state.man_kel = 0.0
-        st.session_state.man_curah = 0.0
-        st.session_state.man_angin = 0.0
-        st.session_state.man_tanah = 0.0
+        st.session_state.man_suhu, st.session_state.man_kel, st.session_state.man_curah, st.session_state.man_angin, st.session_state.man_tanah = 0.0, 0.0, 0.0, 0.0, 0.0
         st.session_state.manual_result = None
 
     def do_predict_manual():
@@ -1169,15 +1192,11 @@ else:
     if "txt_preprocessing" not in st.session_state: st.session_state.txt_preprocessing = {}
 
     def reset_text():
-        st.session_state.txt_input = ""
-        st.session_state.txt_result = None
-        st.session_state.txt_preprocessing = {}
+        st.session_state.txt_input, st.session_state.txt_result, st.session_state.txt_preprocessing = "", None, {}
 
     def do_predict_text():
-        if st.session_state.txt_input.strip() == "":
-            st.warning("Harap masukkan deskripsi teks terlebih dahulu.")
-        elif vectorizer is None or model_text is None:
-            st.error("Model teks gagal dimuat. Pastikan file 'tfidf_vectorizer.joblib' dan 'stacking_text_model.joblib' berada di direktori aplikasi.")
+        if st.session_state.txt_input.strip() == "": st.warning("Harap masukkan deskripsi teks.")
+        elif vectorizer is None or model_text is None: st.error("Model teks gagal dimuat.")
         else:
             try:
                 raw_text = st.session_state.txt_input
@@ -1192,86 +1211,54 @@ else:
                 feature_names = vectorizer.get_feature_names_out()
                 dense_vector = X_trans.todense().tolist()[0]
 
-                tfidf_details = [{"Kata (Term)": word, "Skor TF-IDF": round(score, 4)}
-                                 for word, score in zip(feature_names, dense_vector) if score > 0]
+                tfidf_details = [{"Kata (Term)": word, "Skor TF-IDF": round(score, 4)} for word, score in zip(feature_names, dense_vector) if score > 0]
                 tfidf_details = sorted(tfidf_details, key=lambda x: x["Skor TF-IDF"], reverse=True)
                 df_tfidf = pd.DataFrame(tfidf_details)
 
                 prob_dict = {}
                 try:
                     proba = model_text.predict_proba(X_trans)[0]
-                    prob_dict = {
-                        "Low / Rendah": proba[0],
-                        "Moderate / Sedang": proba[1],
-                        "High / Tinggi": proba[2],
-                        "Very High / Sangat Tinggi": proba[3]
-                    }
-                except Exception:
-                    pass
+                    prob_dict = {"Low / Rendah": proba[0], "Moderate / Sedang": proba[1], "High / Tinggi": proba[2], "Very High / Sangat Tinggi": proba[3]}
+                except: pass
 
                 pred = model_text.predict(X_trans)[0]
-                label_text = convert_to_label(pred)
-
-                st.session_state.txt_preprocessing = {
-                    "raw": raw_text, "case_folding": text_lower, "cleansing": text_clean,
-                    "stopword": text_stopword, "tokenizing": token_display, "stemming": text_stemmed,
-                    "tfidf_df": df_tfidf, "prob_dict": prob_dict
-                }
-                st.session_state.txt_result = label_text
-
-            except Exception as e:
-                st.error(f"Terjadi kesalahan saat memproses input teks: {e}")
+                st.session_state.txt_preprocessing = {"raw": raw_text, "case_folding": text_lower, "cleansing": text_clean, "stopword": text_stopword, "tokenizing": token_display, "stemming": text_stemmed, "tfidf_df": df_tfidf, "prob_dict": prob_dict}
+                st.session_state.txt_result = convert_to_label(pred)
+            except Exception as e: st.error(f"Terjadi kesalahan saat memproses input teks: {e}")
 
     @st.fragment
     def text_prediction_ui():
         st.markdown("<div class='section-title' style='margin-top: 20px;'>Pengujian Menggunakan Data Teks</div>", unsafe_allow_html=True)
-
         st.text_area("Masukkan deskripsi lingkungan:", key="txt_input", height=120)
 
         btn_pred_text, btn_reset_text, _ = st.columns([1, 1, 8])
-        with btn_pred_text:
-            st.button("🔍 Prediksi Teks", on_click=do_predict_text)
-        with btn_reset_text:
-            st.button("🧼 Reset Teks", on_click=reset_text)
+        with btn_pred_text: st.button("🔍 Prediksi Teks", on_click=do_predict_text)
+        with btn_reset_text: st.button("🧼 Reset Teks", on_click=reset_text)
             
         if st.session_state.txt_result:
             with st.expander("🛠️ Klik untuk melihat hasil setiap tahapan Pre-processing & Keputusan Model", expanded=False):
                 steps = st.session_state.txt_preprocessing
                 if steps:
-                    st.markdown("**1. Original Text**")
-                    st.info(steps.get("raw", "-"))
-                    st.markdown("**2. Case Folding (Pengecilan Huruf)**")
-                    st.info(steps.get("case_folding", "-"))
-                    st.markdown("**3. Cleansing (Penghapusan Karakter Khusus & Angka)**")
-                    st.info(steps.get("cleansing", "-"))
-                    st.markdown("**4. Stopword (Penghapusan Kata)**")
-                    st.info(steps.get("stopword", "-"))
-                    st.markdown("**5. Tokenization (Pemenggalan Kata)**")
-                    st.info(steps.get("tokenizing", "[]"))
-                    st.markdown("**6. Stemming (Pemotongan Imbuhan)**")
-                    st.info(steps.get("stemming", "-"))
-                    st.markdown("**7. Ekstraksi Fitur (TF-IDF)**")
+                    st.markdown("**1. Original Text**"); st.info(steps.get("raw", "-"))
+                    st.markdown("**2. Cleansing**"); st.info(steps.get("cleansing", "-"))
+                    st.markdown("**3. Stopword**"); st.info(steps.get("stopword", "-"))
+                    st.markdown("**4. Tokenization**"); st.info(steps.get("tokenizing", "[]"))
+                    st.markdown("**5. Stemming**"); st.info(steps.get("stemming", "-"))
+                    st.markdown("**6. Ekstraksi Fitur (TF-IDF)**")
                     df_tfidf_display = steps.get("tfidf_df")
-                    if df_tfidf_display is not None and not df_tfidf_display.empty:
-                        st.dataframe(df_tfidf_display, use_container_width=True)
-                    else:
-                        st.warning("Kata-kata pada input ini tidak dikenali dalam kosakata (vocabulary) model Anda.")
+                    if df_tfidf_display is not None and not df_tfidf_display.empty: st.dataframe(df_tfidf_display, use_container_width=True)
+                    else: st.warning("Kata-kata pada input ini tidak dikenali.")
 
-                    st.markdown("**8. Analisis Keputusan Model (Probabilitas HSEL)**")
+                    st.markdown("**7. Probabilitas HSEL**")
                     prob_dict = steps.get("prob_dict")
                     if prob_dict:
                         for label, prob in prob_dict.items():
                             st.markdown(f"**{label}** ({prob*100:.1f}%)")
                             st.progress(float(prob))
-                    else:
-                        st.info("Model ini tidak menyediakan metrik probabilitas.")
 
             hasil = st.session_state.txt_result
             font, bg = risk_styles.get(hasil, ("black", "white"))
-            st.markdown(
-                f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top: 15px; font-size: 16px;'>"
-                f"Hasil Prediksi Tingkat Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True
-            )
+            st.markdown(f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top: 15px; font-size: 16px;'>Hasil Prediksi Tingkat Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True)
 
     manual_prediction_ui()
     text_prediction_ui()
@@ -1279,14 +1266,7 @@ else:
     # === FOOTER ===
     st.markdown("<br><hr>", unsafe_allow_html=True)
     st.markdown("""
-    <div style='
-        margin-top: 20px;
-        background-color: black;
-        padding: 10px 20px;
-        border-radius: 10px;
-        text-align: center;
-        color: white;
-    '>
+    <div style='margin-top: 20px; background-color: black; padding: 10px 20px; border-radius: 10px; text-align: center; color: white;'>
         <p style='margin: 0; font-size: 30px; font-weight: bold; line-height: 1.2;'>Smart Fire Prediction HSEL Model</p>
         <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
     </div>
