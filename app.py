@@ -31,14 +31,13 @@ st.set_page_config(page_title="Smart Fire Command Center", page_icon="🔥", lay
 query_params = st.query_params
 current_page = query_params.get("page", "main")
 
-# Inisialisasi state untuk Multimodal
 if "yolo_fire_detected" not in st.session_state:
     st.session_state.yolo_fire_detected = None
 
 # === STYLE KUSTOM ===
 st.markdown("""
     <style>
-    .main {background-color: #f4f7f6;}
+    .main {background-color: #F9F9F9;}
     table {width: 100%; border-collapse: collapse;}
     th, td {border: 1px solid #ddd; padding: 8px;}
     th {background-color: #e0e0e0; text-align: center;}
@@ -46,56 +45,39 @@ st.markdown("""
     .section-title {
         background-color: #1f77b4;
         color: white;
-        padding: 10px 15px;
+        padding: 10px;
         border-radius: 6px;
         font-weight: bold;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .scrollable-table { overflow-x: auto; }
     
-    /* Custom Styling Card */
-    .stCard {
-        background-color: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
+    iframe[title="folium_static"] {
+        border: 4px solid #444 !important;
+        border-radius: 4px !important;
+        box-shadow: 2px 4px 10px rgba(0,0,0,0.2) !important;
     }
     
-    /* Frame khusus untuk iframe Folium */
-    iframe[title="folium_static"] {
-        border: 2px solid #e0e0e0 !important;
-        border-radius: 8px !important;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
+    .yolo-frame {
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 25px;
+        background-color: #ffffff;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+        height: 100%;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # === FUNGSI BANTUAN ===
 def convert_day_to_indonesian(day_name):
-    return {
-        'Monday': 'Senin', 'Tuesday': 'Selasa', 'Wednesday': 'Rabu',
-        'Thursday': 'Kamis', 'Friday': 'Jumat', 'Saturday': 'Sabtu',
-        'Sunday': 'Minggu'
-    }.get(day_name, day_name)
+    return {'Monday':'Senin','Tuesday':'Selasa','Wednesday':'Rabu','Thursday':'Kamis','Friday':'Jumat','Saturday':'Sabtu','Sunday':'Minggu'}.get(day_name, day_name)
 
 def convert_month_to_indonesian(month_name):
-    return {
-        'January': 'Januari', 'February': 'Februari', 'March': 'Maret',
-        'April': 'April', 'May': 'Mei', 'June': 'Juni', 'July': 'Juli',
-        'August': 'Agustus', 'September': 'September', 'October': 'Oktober',
-        'November': 'November', 'December': 'Desember'
-    }.get(month_name, month_name)
+    return {'January':'Januari','February':'Februari','March':'Maret','April':'April','May':'Mei','June':'Juni','July':'Juli','August':'Agustus','September':'September','October':'Oktober','November':'November','December':'Desember'}.get(month_name, month_name)
 
 def convert_to_label(pred):
-    return {
-        0: "Low / Rendah",
-        1: "Moderate / Sedang",
-        2: "High / Tinggi",
-        3: "Very High / Sangat Tinggi"
-    }.get(pred, "Unknown")
+    return {0: "Low / Rendah", 1: "Moderate / Sedang", 2: "High / Tinggi", 3: "Very High / Sangat Tinggi"}.get(pred, "Unknown")
 
-# Dikembalikan ke warna original
 risk_styles = {
     "Low / Rendah": ("white", "blue"),
     "Moderate / Sedang": ("white", "green"),
@@ -111,24 +93,15 @@ def get_image_base64(path):
         return ""
 
 def get_multimodal_decision(visual_label, iot_label):
-    if visual_label == 1 and "Very High" in iot_label:
-        return "Kebakaran Telah Terjadi", "Indikasi sangat kuat bahwa kebakaran telah terjadi berdasarkan konfirmasi visual dan sensor.", "#B22222", "🔥"
-    elif visual_label == 1 and "High" in iot_label:
-        return "Kebakaran Sangat Mungkin", "Gambaran visual api dan kondisi lingkungan berisiko tinggi memperkuat dugaan kebakaran aktif.", "#DC143C", "🚨"
-    elif visual_label == 1 and "Moderate" in iot_label:
-        return "Kemungkinan Kebakaran", "Visual mendeteksi api, namun kondisi sensor menunjukkan tingkat risiko sedang.", "#FF8C00", "⚠️"
-    elif visual_label == 1 and "Low" in iot_label:
-        return "Terdeteksi Api Isolated", "Visual menunjukkan api meskipun kondisi lingkungan kurang mendukung penyebaran. Kemungkinan aktivitas manusia.", "#FFA500", "🟠"
-    elif visual_label == 0 and "Very High" in iot_label:
-        return "Risiko Kebakaran Sangat Tinggi", "Belum ada deteksi visual api, namun lingkungan sangat rentan kebakaran. Waspada dini diperlukan.", "#8B0000", "🌡️"
-    elif visual_label == 0 and "High" in iot_label:
-        return "Potensi Kebakaran Tinggi", "Belum ada api terdeteksi, tetapi kondisi sekitar menunjukkan risiko tinggi kebakaran.", "#FF6347", "🔥"
-    elif visual_label == 0 and "Moderate" in iot_label:
-        return "Kondisi Rentan Kebakaran", "Lingkungan menunjukkan risiko sedang terhadap kebakaran. Pemantauan disarankan.", "#FFD700", "⚠️"
-    elif visual_label == 0 and "Low" in iot_label:
-        return "Tidak Terindikasi Kebakaran", "Tidak ada api terdeteksi dan kondisi lingkungan tergolong aman.", "#228B22", "✅"
-    else:
-        return "Status Tidak Diketahui", "Data tidak mencukupi untuk menarik kesimpulan.", "#808080", "❓"
+    if visual_label == 1 and "Very High" in iot_label: return "Kebakaran Telah Terjadi", "Indikasi sangat kuat bahwa kebakaran telah terjadi berdasarkan konfirmasi visual dan sensor.", "#B22222", "🔥"
+    elif visual_label == 1 and "High" in iot_label: return "Kebakaran Sangat Mungkin", "Gambaran visual api dan kondisi lingkungan berisiko tinggi memperkuat dugaan kebakaran aktif.", "#DC143C", "🚨"
+    elif visual_label == 1 and "Moderate" in iot_label: return "Kemungkinan Kebakaran", "Visual mendeteksi api, namun kondisi sensor menunjukkan tingkat risiko sedang.", "#FF8C00", "⚠️"
+    elif visual_label == 1 and "Low" in iot_label: return "Terdeteksi Api Isolated", "Visual menunjukkan api meskipun kondisi lingkungan kurang mendukung penyebaran. Kemungkinan aktivitas manusia.", "#FFA500", "🟠"
+    elif visual_label == 0 and "Very High" in iot_label: return "Risiko Kebakaran Sangat Tinggi", "Belum ada deteksi visual api, namun lingkungan sangat rentan kebakaran. Waspada dini diperlukan.", "#8B0000", "🌡️"
+    elif visual_label == 0 and "High" in iot_label: return "Potensi Kebakaran Tinggi", "Belum ada api terdeteksi, tetapi kondisi sekitar menunjukkan risiko tinggi kebakaran.", "#FF6347", "🔥"
+    elif visual_label == 0 and "Moderate" in iot_label: return "Kondisi Rentan Kebakaran", "Lingkungan menunjukkan risiko sedang terhadap kebakaran. Pemantauan disarankan.", "#FFD700", "⚠️"
+    elif visual_label == 0 and "Low" in iot_label: return "Tidak Terindikasi Kebakaran", "Tidak ada api terdeteksi dan kondisi lingkungan tergolong aman.", "#228B22", "✅"
+    else: return "Status Tidak Diketahui", "Data tidak mencukupi untuk menarik kesimpulan.", "#808080", "❓"
 
 # === LOAD MODEL, SCALER, SASTRAWI, YOLO ===
 @st.cache_resource
@@ -188,8 +161,7 @@ def preprocess_sensor_data(df):
     actual_rename = {}
     for target_name, candidates in rename_map_candidates.items():
         for cand in candidates:
-            if cand in df.columns:
-                actual_rename[cand] = target_name; break
+            if cand in df.columns: actual_rename[cand] = target_name; break
 
     df = df.rename(columns=actual_rename)
     fitur = ['Tavg: Temperatur rata-rata (°C)', 'RH_avg: Kelembapan rata-rata (%)', 'RR: Curah hujan (mm)', 'ff_avg: Kecepatan angin rata-rata (m/s)', 'Kelembaban Permukaan Tanah']
@@ -214,7 +186,6 @@ def preprocess_sensor_data(df):
 # -------------------------------------------------------------------------
 if current_page == "multimodal":
     
-    # Elegan Header
     logo_b64 = get_image_base64("logo upi yptk.png")
     img_tag = f'<img src="data:image/png;base64,{logo_b64}" width="65" style="border-radius:8px; background:white; padding:5px;">' if logo_b64 else '🔥'
     
@@ -237,15 +208,13 @@ if current_page == "multimodal":
         
         # === KOLOM VISUAL (KIRI) ===
         with col_vis:
-            st.markdown("<div class='stCard'>", unsafe_allow_html=True)
+            st.markdown("<div class='yolo-frame'>", unsafe_allow_html=True)
             st.markdown("<h4 style='color:#2c3e50; border-bottom:2px solid #e0e0e0; padding-bottom:10px; margin-top:0;'>👁️ AI Visual (Hybrid YOLO-ViT+GRU)</h4>", unsafe_allow_html=True)
             
-            # Pengganti Tabs: Menggunakan Radio Button agar kamera mati saat pindah menu
             input_method = st.radio("Pilih Sumber Pengamatan:", ["📁 Unggah File Citra", "🎥 Kamera Langsung / USB"], horizontal=True)
             img_to_process = None
             
-            st.markdown("<div style='min-height: 400px; display: flex; justify-content: center; align-items: center; border: 1px dashed #ccc; border-radius: 8px; background-color: #fafafa; padding: 10px;'>", unsafe_allow_html=True)
-            
+            # Kotak merah/kosong telah dihapus. Konten menyesuaikan tinggi otomatis.
             if "Kamera" in input_method:
                 st.info("💡 Pastikan memberikan izin akses kamera pada browser Anda.")
                 camera_image = st.camera_input("Ambil Citra Lahan")
@@ -270,16 +239,8 @@ if current_page == "multimodal":
                         st.success("✅ Tidak terdeteksi adanya anomali api pada citra ini.")
             else:
                 st.session_state.yolo_fire_detected = None
-                # Menampilkan gambar perangkat IoT sebagai placeholder ketika kosong
-                try:
-                    st.image(Image.open("alat_iot.png"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
-                except:
-                    try: 
-                        st.image(Image.open("forestiot4.jpg"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
-                    except:
-                        st.info("Menunggu input visual...")
                 
-            st.markdown("</div></div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
         # === KOLOM SENSOR & KEPUTUSAN (KANAN) ===
         with col_sensor:
@@ -288,7 +249,7 @@ if current_page == "multimodal":
                 df_raw = load_data()
                 res = preprocess_sensor_data(df_raw)
                 
-                st.markdown("<div class='stCard' style='margin-bottom:0;'>", unsafe_allow_html=True)
+                st.markdown("<div style='background-color:#fff; padding:25px; border-radius:12px; border:2px solid #e2e8f0; box-shadow:0 6px 12px rgba(0,0,0,0.08); margin-bottom:0;'>", unsafe_allow_html=True)
                 st.markdown("<h4 style='color:#2c3e50; border-bottom:2px solid #e0e0e0; padding-bottom:10px; margin-top:0;'>📡 Konteks Lingkungan (IoT)</h4>", unsafe_allow_html=True)
                 
                 if res[0] is not None and not isinstance(res[0], str):
@@ -297,7 +258,6 @@ if current_page == "multimodal":
                     last_num = clean_df.iloc[-1]
                     hsel_risk = last_row["Prediksi Kebakaran"]
                     
-                    # Layout Grid untuk 5 Parameter
                     st.markdown("<p style='font-size:13px; color:gray; margin-bottom:5px;'>Pembacaan Node Sensor Real-Time:</p>", unsafe_allow_html=True)
                     m1, m2, m3 = st.columns(3)
                     m1.metric("🌡️ Suhu", f"{float(last_num[fitur[0]]):.1f} °C")
@@ -308,7 +268,6 @@ if current_page == "multimodal":
                     m4.metric("💨 Kec. Angin", f"{float(last_num[fitur[3]]):.1f} m/s")
                     m5.metric("🌱 Kel. Tanah", f"{float(last_num[fitur[4]]):.1f} %")
                     
-                    # Narasi Prediksi seperti Dashboard Utama
                     waktu = pd.to_datetime(last_row['Waktu'], errors='coerce')
                     if pd.isna(waktu):
                         try: waktu = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
@@ -341,7 +300,6 @@ if current_page == "multimodal":
                     else:
                         visual_val = 1 if fire_detected else 0
                         title, desc, color, icon = get_multimodal_decision(visual_val, hsel_risk)
-                        
                         font_col = "white" if color not in ["#FFD700", "#FF8C00", "#FFA500"] else "black"
                         
                         st.markdown(f"""
@@ -351,27 +309,58 @@ if current_page == "multimodal":
                         </div>
                         """, unsafe_allow_html=True)
                         
-                    # MINI MAP (Dengan Data GeoJSON Pekanbaru)
-                    st.markdown("<h5 style='margin-top:25px; color:#2c3e50;'>🗺️ Peta Konteks Lokal</h5>", unsafe_allow_html=True)
-                    marker_color = {"Low / Rendah": "blue", "Moderate / Sedang": "green", "High / Tinggi": "orange", "Very High / Sangat Tinggi": "red"}.get(hsel_risk, "gray")
+                    # MINI MAP & IOT SENSOR BERDAMPINGAN
+                    st.markdown("<h5 style='margin-top:25px; color:#2c3e50;'>🗺️ Peta Konteks & Sensor</h5>", unsafe_allow_html=True)
                     
-                    m_mini = folium.Map(location=[0.5333, 101.4500], zoom_start=9.5, tiles='CartoDB positron', control_scale=True)
+                    cm1, cm2 = st.columns([1.2, 1])
+                    with cm1:
+                        marker_color = {"Low / Rendah": "blue", "Moderate / Sedang": "green", "High / Tinggi": "orange", "Very High / Sangat Tinggi": "red"}.get(hsel_risk, "gray")
+                        m_mini = folium.Map(location=[0.5333, 101.4500], zoom_start=9.5, tiles='CartoDB positron', control_scale=True)
+                        
+                        try:
+                            riau_geojson_data = load_riau_geojson()
+                            pku_geo = {"type": "FeatureCollection", "features": []}
+                            if riau_geojson_data:
+                                for feature in riau_geojson_data['features']:
+                                    if 'pekanbaru' in feature['properties'].get('nama', '').lower() or 'pekanbaru' in feature['properties'].get('kab_kota', '').lower():
+                                        pku_geo["features"].append(feature)
+                                        break
+                            if pku_geo["features"]:
+                                folium.GeoJson(pku_geo, style_function=lambda f, c=marker_color: {'fillColor': c, 'color': c, 'weight': 2, 'fillOpacity': 0.3}).add_to(m_mini)
+                        except Exception: pass
+                        
+                        popup_html = f"<b>Pekanbaru</b><br>HSEL: {hsel_risk}"
+                        folium.Marker(location=[0.5333, 101.4500], popup=popup_html, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m_mini)
+                        folium_static(m_mini, width=220, height=200)
+                        
+                    with cm2:
+                        st.markdown("<div style='font-size:12px; color:gray; text-align:center; margin-bottom:5px;'>Alat IoT</div>", unsafe_allow_html=True)
+                        try:
+                            st.image(Image.open("alat_iot.png"), use_container_width=True)
+                        except Exception:
+                            try: st.image(Image.open("forestiot4.jpg"), use_container_width=True)
+                            except: st.info("Gambar alat_iot.png tidak ditemukan.")
+
+                    # INFORMASI PRODUCED BY (Seperti di Dashboard Pekanbaru)
+                    logo_upi_b64 = get_image_base64("logo upi yptk.png")
+                    logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 50px; height: auto;" alt="Logo">' if logo_upi_b64 else ''
                     
-                    try:
-                        riau_geojson_data = load_riau_geojson()
-                        pku_geo = {"type": "FeatureCollection", "features": []}
-                        if riau_geojson_data:
-                            for feature in riau_geojson_data['features']:
-                                if 'pekanbaru' in feature['properties'].get('nama', '').lower() or 'pekanbaru' in feature['properties'].get('kab_kota', '').lower():
-                                    pku_geo["features"].append(feature)
-                                    break
-                        if pku_geo["features"]:
-                            folium.GeoJson(pku_geo, style_function=lambda f, c=marker_color: {'fillColor': c, 'color': c, 'weight': 2, 'fillOpacity': 0.3}).add_to(m_mini)
-                    except Exception: pass
-                    
-                    popup_html = f"<b>Pekanbaru</b><br>HSEL: {hsel_risk}"
-                    folium.Marker(location=[0.5333, 101.4500], popup=popup_html, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m_mini)
-                    folium_static(m_mini, width=420, height=220)
+                    st.markdown(f"""
+                    <div style="background: #fdfdfd; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-top:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 12px;">
+                            {logo_upi_tag}
+                            <div style="text-align: left; line-height: 1.4;">
+                                <b style="font-size: 10px; color: #718096; text-transform: uppercase; letter-spacing: 0.8px;">Produced By</b><br>
+                                <span style="font-size: 12px; font-weight: bold; color: #2d3748;">Multimodal HSEL & Hybrid YOLO</span><br>
+                                <span style="font-size: 10px; font-style: italic; color: #4a5568;">Mahasiswa Doctoral TI UPI YPTK Padang</span>
+                            </div>
+                        </div>
+                        <div style="border-top: 1px dashed #cbd5e0; padding-top: 10px; text-align: center;">
+                            <div style="font-size: 11px; color: #3182ce; font-weight: 600; margin-bottom: 4px;">Processed: <span style="color: #2b6cb0; font-weight: normal;">{tanggal_valid}</span></div>
+                            <div style="font-size: 10px; color: #718096;">Data Source: Sensor IoT Lokal & Vision AI</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
                 else:
                     st.warning("⚠️ Data IoT Terputus atau Tidak Tersedia.")
@@ -379,33 +368,6 @@ if current_page == "multimodal":
                 st.markdown("</div>", unsafe_allow_html=True)
                 
             sensor_and_decision_fragment()
-            
-            # BAGIAN GAMBAR ALAT IOT DAN INFORMASI RISIKO
-            st.markdown("<div class='stCard'>", unsafe_allow_html=True)
-            
-            col_alat, col_info = st.columns([1, 1])
-            with col_alat:
-                st.markdown("<b style='color:#333; font-size:14px;'>⚙️ Node Sensor IoT</b>", unsafe_allow_html=True)
-                try:
-                    st.image(Image.open("alat_iot.png"), use_container_width=True)
-                except Exception:
-                    try: 
-                        st.image(Image.open("forestiot4.jpg"), use_container_width=True)
-                    except:
-                        st.info("Gambar alat tidak ditemukan.")
-                        
-            with col_info:
-                st.markdown("<b style='color:#333; font-size:14px;'>🗂️ Referensi Cepat</b>", unsafe_allow_html=True)
-                with st.expander("ℹ️ Panduan Risiko & Tindakan", expanded=False):
-                    st.markdown("""
-                    <div style="font-size:11px; line-height:1.4;">
-                    <b style="color:blue;">Low (Rendah):</b> Resiko rendah. Api mudah dikendalikan.<br><br>
-                    <b style="color:green;">Moderate (Sedang):</b> Resiko sedang. Pantauan ditingkatkan.<br><br>
-                    <b style="color:orange;">High (Tinggi):</b> Resiko tinggi. Api sulit dikendalikan. Siapkan tim.<br><br>
-                    <b style="color:red;">Very High (Sangat Tinggi):</b> Darurat! Api sangat sulit dikendalikan.
-                    </div>
-                    """, unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
 
 
 # -------------------------------------------------------------------------
@@ -436,14 +398,13 @@ else:
             st.markdown(
                 f"""
                 <a href='{SHEET_EDIT_LINK}' target='_blank'>
-                <button style='padding: 6px 16px; background-color: #1f77b4; color: white; border: none; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>Data Cloud</button>
+                <button style='padding: 6px 16px; background-color: #1f77b4; color: white; border: none; border-radius: 4px; cursor: pointer;'>Data Cloud</button>
                 </a>
                 """,
                 unsafe_allow_html=True
             )
 
     st.markdown("<hr style='margin-top: 10px; margin-bottom: 25px;'>", unsafe_allow_html=True)
-
 
     # === BAGIAN REALTIME FRAGMENT (KOLOM KIRI YANG REFRESH 7 DETIK) ==========
     @st.fragment(run_every=7)
@@ -464,10 +425,8 @@ else:
         last_num = clean_df.iloc[-1]
         waktu = pd.to_datetime(last_row['Waktu'], errors='coerce')
         if pd.isna(waktu):
-            try:
-                waktu = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
-            except Exception:
-                waktu = None
+            try: waktu = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
+            except Exception: waktu = None
 
         if isinstance(waktu, pd.Timestamp):
             hari = convert_day_to_indonesian(waktu.strftime('%A'))
@@ -495,7 +454,7 @@ else:
         st.markdown(sensor_html, unsafe_allow_html=True)
 
         st.markdown(
-            f"<p style='background-color:{bg}; color:{font}; padding:10px; border-radius:8px; font-weight:bold; margin-top: 15px;'>"
+            f"<p style='background-color:{bg}; color:{font}; padding:10px; border-radius:8px; font-weight:bold;'>"
             f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran: "
             f"<span style='text-decoration: underline; font-size: 22px;'>{risk_label}</span></p>",
             unsafe_allow_html=True
@@ -507,18 +466,14 @@ else:
             try:
                 data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
                 background_data = pd.DataFrame(shap.sample(scaled_all, 50), columns=fitur)
-
                 explainer = shap.Explainer(model.predict, background_data)
                 shap_values = explainer(data_realtime_scaled)
-
                 data_realtime_raw = clean_df.iloc[-1:].values
                 shap_values.data = data_realtime_raw
 
                 plt.rcParams.update({'font.size': 14})
                 fig, ax = plt.subplots(figsize=(10, 6))
-
                 shap.plots.waterfall(shap_values[0], show=False)
-
                 total_abs_shap = sum(abs(v) for v in shap_values[0].values)
 
                 for text in ax.texts:
@@ -540,24 +495,17 @@ else:
                 kontribusi = []
                 for nama_f, shap_v in zip(fitur, shap_vals_arr):
                     pct_f = (abs(float(shap_v)) / total_abs_shap) * 100 if total_abs_shap > 0 else 0.0
-                    kontribusi.append({
-                        "fitur": nama_f, "shap_val": float(shap_v), "pct": pct_f
-                    })
+                    kontribusi.append({"fitur": nama_f, "shap_val": float(shap_v), "pct": pct_f})
                 kontribusi = sorted(kontribusi, key=lambda x: x["pct"], reverse=True)
 
                 st.markdown("<h4 style='margin-top: 25px;'>Analisis Detail Keputusan Model (XAI)</h4>", unsafe_allow_html=True)
 
-                if risk_label == "Low / Rendah":
-                    st.success("Kondisi lingkungan saat ini terpantau **sangat aman dan stabil**. Berdasarkan analisis *Explainable AI* (SHAP), berikut adalah dominasi faktor-faktor alam yang sukses meredam potensi kebakaran:")
-                elif risk_label == "Moderate / Sedang":
-                    st.info("Kondisi lingkungan saat ini terpantau **cukup stabil namun memerlukan pemantauan berkala**. Berikut adalah rincian faktor yang memengaruhi keseimbangan risiko saat ini:")
-                elif risk_label == "High / Tinggi":
-                    st.warning("Kondisi lingkungan saat ini terpantau **kritis**. Berdasarkan analisis *Explainable AI* (SHAP), terdapat ancaman bahaya yang dipicu oleh memburuknya faktor-faktor berikut:")
-                elif risk_label == "Very High / Sangat Tinggi":
-                    st.error("Kondisi lingkungan saat ini berada pada fase **SANGAT EKSTREM**. Faktor-faktor alam berikut secara masif mendorong eskalasi kebakaran lahan ke tingkat bahaya tertinggi:")
+                if risk_label == "Low / Rendah": st.success("Kondisi lingkungan saat ini terpantau **sangat aman dan stabil**. Berdasarkan analisis *Explainable AI* (SHAP), berikut adalah dominasi faktor-faktor alam yang sukses meredam potensi kebakaran:")
+                elif risk_label == "Moderate / Sedang": st.info("Kondisi lingkungan saat ini terpantau **cukup stabil namun memerlukan pemantauan berkala**. Berikut adalah rincian faktor yang memengaruhi keseimbangan risiko saat ini:")
+                elif risk_label == "High / Tinggi": st.warning("Kondisi lingkungan saat ini terpantau **kritis**. Berdasarkan analisis *Explainable AI* (SHAP), terdapat ancaman bahaya yang dipicu oleh memburuknya faktor-faktor berikut:")
+                elif risk_label == "Very High / Sangat Tinggi": st.error("Kondisi lingkungan saat ini berada pada fase **SANGAT EKSTREM**. Faktor-faktor alam berikut secara masif mendorong eskalasi kebakaran lahan ke tingkat bahaya tertinggi:")
 
                 icons = ["🔴", "🟠", "🟡", "🟢", "⚪"]
-
                 for i, factor in enumerate(kontribusi):
                     icon = icons[i] if i < len(icons) else "⚪"
                     nama_fitur = str(factor['fitur']).lower()
@@ -588,20 +536,14 @@ else:
                         else:
                             if arah > 0: st.write("- Secara kalkulasi sistem berkontribusi dalam meningkatkan potensi risiko kebakaran.")
                             else: st.write("- Secara kalkulasi sistem berkontribusi menstabilkan potensi risiko kebakaran.")
-
             except Exception as e:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
 
         with st.expander("Tindak Lanjut Instansi"):
-            if risk_label == "Low / Rendah":
-                st.markdown("""**Tindakan Instansi:**\n1. Monitoring rutin kondisi lingkungan\n2. Patroli berkala ringan\n3. Edukasi preventif kepada masyarakat\n4. Dokumentasi dan pelaporan kondisi normal""")
-            elif risk_label == "Moderate / Sedang":
-                st.markdown("""**Tindakan Instansi:**\n1. Peningkatan frekuensi patroli\n2. Penyampaian peringatan dini terbatas\n3. Koordinasi internal BPBD dan aparat desa\n4. Pengawasan aktivitas pembakaran terbuka""")
-            elif risk_label == "High / Tinggi":
-                st.markdown("""**Tindakan Instansi:**\n1. Aktivasi pos siaga tingkat lokal\n2. Penempatan personel siaga di titik rawan\n3. Koordinasi dengan TNI/Polri dan Manggala Agni\n4. Peringatan dini terbuka masyarakat\n5. Penyiapan peralatan pemadaman awal""")
-            elif risk_label == "Very High / Sangat Tinggi":
-                st.markdown("""**Tindakan Instansi:**\n1. Penetapan status siaga darurat tingkat lokal\n2. Aktivasi penuh posko tanggap darurat\n3. Mobilisasi tim pemantauan dan pemadam\n4. Koordinasi lintas sektor (BPBD, TNI, Polri, DLH)\n5. Penyebaran peringatan dini melalui media resmi\n6. Pengetatan larangan pembakaran terbuka""")
-
+            if risk_label == "Low / Rendah": st.markdown("""**Tindakan Instansi:**\n1. Monitoring rutin kondisi lingkungan\n2. Patroli berkala ringan\n3. Edukasi preventif kepada masyarakat\n4. Dokumentasi dan pelaporan kondisi normal""")
+            elif risk_label == "Moderate / Sedang": st.markdown("""**Tindakan Instansi:**\n1. Peningkatan frekuensi patroli\n2. Penyampaian peringatan dini terbatas\n3. Koordinasi internal BPBD dan aparat desa\n4. Pengawasan aktivitas pembakaran terbuka""")
+            elif risk_label == "High / Tinggi": st.markdown("""**Tindakan Instansi:**\n1. Aktivasi pos siaga tingkat lokal\n2. Penempatan personel siaga di titik rawan\n3. Koordinasi dengan TNI/Polri dan Manggala Agni\n4. Peringatan dini terbuka masyarakat\n5. Penyiapan peralatan pemadaman awal""")
+            elif risk_label == "Very High / Sangat Tinggi": st.markdown("""**Tindakan Instansi:**\n1. Penetapan status siaga darurat tingkat lokal\n2. Aktivasi penuh posko tanggap darurat\n3. Mobilisasi tim pemantauan dan pemadam\n4. Koordinasi lintas sektor (BPBD, TNI, Polri, DLH)\n5. Penyebaran peringatan dini melalui media resmi\n6. Pengetatan larangan pembakaran terbuka""")
 
     # === BAGIAN PETA REALTIME PEKANBARU FRAGMENT ===========
     @st.fragment(run_every=7)
@@ -626,6 +568,56 @@ else:
             pekanbaru_coords = [0.5333, 101.4500] 
             marker_color = {"Low / Rendah": "blue", "Moderate / Sedang": "green", "High / Tinggi": "orange", "Very High / Sangat Tinggi": "red"}.get(risk_label, "gray")
 
+            xai_html = ""
+            try:
+                data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
+                background_data = pd.DataFrame(shap.sample(scaled_all, 50), columns=fitur)
+                explainer = shap.Explainer(model.predict, background_data)
+                shap_values = explainer(data_realtime_scaled)
+                
+                total_abs_shap = sum(abs(v) for v in shap_values[0].values)
+                kontribusi_map = []
+                for nama_f, shap_v in zip(fitur, shap_values[0].values):
+                    pct_f = (abs(float(shap_v)) / total_abs_shap) * 100 if total_abs_shap > 0 else 0.0
+                    kontribusi_map.append({"fitur": nama_f, "shap_val": float(shap_v), "pct": pct_f})
+                kontribusi_map = sorted(kontribusi_map, key=lambda x: x["pct"], reverse=True)
+                
+                for factor in kontribusi_map:
+                    nama_fitur = str(factor['fitur']).lower()
+                    persen = factor['pct']
+                    arah = factor['shap_val']
+                    icon = "🔴" if arah > 0 else "🟢"
+                    
+                    if persen < 5.0:
+                        icon = "⚪"
+                        desc = "Dorongan minor terhadap potensi risiko." if arah > 0 else "Efek peredaman sangat kecil."
+                        bg_col = "#f5f5f5"
+                        br_col = "#cccccc"
+                    else:
+                        if "tanah" in nama_fitur: desc = "Meningkatkan Risiko (Kering)" if arah > 0 else "Meredam Risiko (Lembab)"
+                        elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur: desc = "Memperburuk (Udara Kering)" if arah > 0 else "Menjaga Kebasahan (Lembap)"
+                        elif "angin" in nama_fitur or "ff" in nama_fitur: desc = "Mempercepat Eskalasi (O2)" if arah > 0 else "Kondisi Stabil (Tenang)"
+                        elif "suhu" in nama_fitur or "temperatur" in nama_fitur or "tavg" in nama_fitur: desc = "Memicu Penguapan (Panas)" if arah > 0 else "Stabilitas Termal (Normal)"
+                        elif "hujan" in nama_fitur or "rr" in nama_fitur: desc = "Tanpa Hujan (Pendingin Hilang)" if arah > 0 else "Faktor Pendingin (Hujan)"
+                        else: desc = "Meningkatkan Potensi" if arah > 0 else "Menstabilkan Potensi"
+                        
+                        bg_col = "#ffebeb" if arah > 0 else "#ebffef"
+                        br_col = "#ff4b4b" if arah > 0 else "#21c354"
+                    
+                    xai_html += f"""
+                    <div style='margin-bottom: 6px; padding: 6px; background: {bg_col}; border-left: 3px solid {br_col}; border-radius: 0 4px 4px 0;'>
+                        <b style='color:#333; font-size:12px;'>{icon} {factor['fitur'].title()} ({persen:.1f}%)</b><br>
+                        <span style='color:#555; font-size:11px;'>{desc}</span>
+                    </div>
+                    """
+            except Exception:
+                xai_html = "<i>Data XAI belum siap dimuat.</i>"
+
+            if risk_label == "Low / Rendah": tl_html = "<ul><li>Monitoring rutin</li><li>Patroli ringan</li><li>Edukasi preventif</li></ul>"
+            elif risk_label == "Moderate / Sedang": tl_html = "<ul><li>Peningkatan patroli</li><li>Peringatan terbatas</li><li>Pengawasan pembakaran</li></ul>"
+            elif risk_label == "High / Tinggi": tl_html = "<ul><li>Aktivasi pos siaga</li><li>Koordinasi TNI/Polri</li><li>Siap alat pemadaman</li></ul>"
+            else: tl_html = "<ul><li>Status siaga darurat</li><li>Mobilisasi pemadam</li><li>Koordinasi lintas sektor</li></ul>"
+
             try:
                 riau_geojson_data = load_riau_geojson()
                 pekanbaru_geojson = {"type": "FeatureCollection", "features": []}
@@ -636,8 +628,7 @@ else:
                         if 'pekanbaru' in nama_wilayah or 'pekanbaru' in kab_kota:
                             pekanbaru_geojson["features"].append(feature)
                             break
-            except Exception:
-                pekanbaru_geojson = None
+            except Exception: pekanbaru_geojson = None
 
             popup_text = folium.Popup(f"""
                 <div style='width: 230px; font-size: 13px; line-height: 1.5;'>
@@ -654,26 +645,18 @@ else:
             m = folium.Map(location=pekanbaru_coords, zoom_start=9.5, control_scale=True, tiles='OpenStreetMap')
 
             formatter = "function(num) {return L.Util.formatNum(num, 5) + ' &deg;';};"
-            MousePosition(
-                position="bottomleft", separator=" | ", empty_string="Koordinat tidak tersedia",
-                lng_first=True, num_digits=20, prefix="Posisi:", lat_formatter=formatter, lng_formatter=formatter,
-            ).add_to(m)
+            MousePosition(position="bottomleft", separator=" | ", empty_string="Koordinat tidak tersedia", lng_first=True, num_digits=20, prefix="Posisi:", lat_formatter=formatter, lng_formatter=formatter).add_to(m)
             Fullscreen(position='topright').add_to(m)
 
             if pekanbaru_geojson and pekanbaru_geojson["features"]:
-                folium.GeoJson(
-                    pekanbaru_geojson,
-                    style_function=lambda feature, color=marker_color: {'fillColor': color, 'color': color, 'weight': 2, 'fillOpacity': 0.4},
-                    tooltip=folium.GeoJsonTooltip(fields=['nama'], aliases=['Wilayah:'], style="font-weight: bold; font-size: 14px;")
-                ).add_to(m)
+                folium.GeoJson(pekanbaru_geojson, style_function=lambda feature, color=marker_color: {'fillColor': color, 'color': color, 'weight': 2, 'fillOpacity': 0.4}, tooltip=folium.GeoJsonTooltip(fields=['nama'], aliases=['Wilayah:'], style="font-weight: bold; font-size: 14px;")).add_to(m)
 
             folium.Marker(location=pekanbaru_coords, popup=popup_text, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m)
 
             logo_b64 = get_image_base64("logo.png")
             logo_upi_b64 = get_image_base64("logo upi yptk.png")
-                
-            logo_img_tag = f'<img src="data:image/png;base64,{logo_b64}" style="height: 45px; background: white; padding: 4px; border-radius: 4px;" alt="Logo">' if logo_b64 else ''
-            logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 50px; height: auto;" alt="Logo UPI YPTK">' if logo_upi_b64 else ''
+            logo_img_tag = f'<img src="data:image/png;base64,{logo_b64}" style="height: 55px; background: white; padding: 4px; border-radius: 4px;" alt="Logo">' if logo_b64 else ''
+            logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 60px; height: auto;" alt="Logo UPI YPTK">' if logo_upi_b64 else ''
             
             raw_map_html = m.get_root().render()
 
@@ -685,36 +668,73 @@ else:
                         <div style="display: flex; align-items: center; gap: 15px;">
                             {logo_img_tag}
                             <div>
-                                <h2 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.5px;">Dashboard Pemantauan Spasial</h2>
-                                <p style="margin: 5px 0 0 0; font-size: 12px; color: #dceefb;">Integrasi Model Machine Learning dan GIS</p>
+                                <h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.5px;">Dashboard Prediksi Risiko Kebakaran Lahan</h2>
+                                <p style="margin: 5px 0 0 0; font-size: 13px; color: #dceefb;">Integrasi Model Machine Learning, IoT, dan Spatial GIS</p>
                             </div>
                         </div>
-                        <div style="text-align: right; font-size: 13px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 8px;">
-                            <b>Wilayah:</b> Pekanbaru<br>
-                            <span style="color: #e2f0ff;">{tanggal_valid}</span>
+                        <div style="text-align: right; font-size: 13px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
+                            <b style="font-size: 14px; letter-spacing: 0.5px;">Domain/Wilayah:</b> Prov. RIAU - Kota Pekanbaru<br>
+                            <span style="color: #e2f0ff;"><b>Valid/Berlaku:</b> {tanggal_valid}</span>
                         </div>
                     </div>
                     
                     <div style="display: flex; gap: 20px; flex-grow: 1; height: calc(100% - 95px); overflow: hidden;">
+                        
+                        <div style="width: 280px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px; flex-shrink: 0;">
+                            
+                            <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                                <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 10px;">Status Prediksi Saat Ini</b>
+                                <div style="font-size: 17px; font-weight: bold; color: {marker_color};">{risk_label}</div>
+                            </div>
+
+                            <div style="display: flex; gap: 10px;">
+                                <div style="flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9; text-align:center;">
+                                    <b style="font-size: 12px; color: #333; display: block; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Arah Utara</b>
+                                    <div style="font-weight: bold; font-size: 15px; color: #333; margin-bottom: 3px;">U</div>
+                                    <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 16px solid red; margin: 0 auto;"></div>
+                                    <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 16px solid #555; margin: 0 auto;"></div>
+                                </div>
+                                <div style="flex: 1.5; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9;">
+                                    <b style="font-size: 12px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 8px;">Legenda Risiko</b>
+                                    <div style="font-size: 11px; line-height: 1.8;">
+                                        <div style="display: flex; align-items: center;"><i style="background: blue; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px;"></i> Rendah</div>
+                                        <div style="display: flex; align-items: center;"><i style="background: green; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px;"></i> Sedang</div>
+                                        <div style="display: flex; align-items: center;"><i style="background: orange; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px;"></i> Tinggi</div>
+                                        <div style="display: flex; align-items: center;"><i style="background: red; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px;"></i> S. Tinggi</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                                <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 5px;">Tindak Lanjut Instansi</b>
+                                <div style="font-size: 12px; line-height: 1.5;">{tl_html}</div>
+                            </div>
+                        </div>
+                        
                         <div style="flex-grow: 1; border: 2px solid #e2e8f0; border-radius: 10px; overflow: hidden; position: relative;">
             """
             
             custom_layout_end = f"""
                         </div> 
                         
-                        <div style="width: 300px; display: flex; flex-direction: column; gap: 15px; flex-shrink: 0;">
-                            <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
-                                <b style="font-size: 13px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 10px;">Status Prediksi Saat Ini</b>
-                                <div style="font-size: 16px; font-weight: bold; color: {marker_color};">{risk_label}</div>
+                        <div style="width: 340px; display: flex; flex-direction: column; gap: 18px; flex-shrink: 0; padding-left: 5px;">
+                            <div style="flex-grow: 1; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; background: #ffffff;">
+                                <b style="font-size: 14px; color: #2d3748; display: block; border-bottom: 2px solid #edf2f7; padding-bottom: 12px; margin-bottom: 15px; text-transform: uppercase;">Faktor Pemicu (XAI SHAP)</b>
+                                <div style="font-size: 12px;">{xai_html}</div>
                             </div>
 
-                            <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9; flex-grow:1;">
-                                <b style="font-size: 12px; color: #333; display: block; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 8px;">Legenda Risiko</b>
-                                <div style="font-size: 12px; line-height: 2;">
-                                    <div style="display: flex; align-items: center;"><i style="background: blue; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px;"></i> Rendah</div>
-                                    <div style="display: flex; align-items: center;"><i style="background: green; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px;"></i> Sedang</div>
-                                    <div style="display: flex; align-items: center;"><i style="background: orange; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px;"></i> Tinggi</div>
-                                    <div style="display: flex; align-items: center;"><i style="background: red; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px;"></i> S. Tinggi</div>
+                            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px;">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 18px;">
+                                    {logo_upi_tag}
+                                    <div style="text-align: left; line-height: 1.5;">
+                                        <b style="font-size: 11px; color: #718096; text-transform: uppercase; letter-spacing: 0.8px;">Produced By</b><br>
+                                        <span style="font-size: 13px; font-weight: bold; color: #2d3748;">Model HSEL Terintegrasi IoT</span><br>
+                                        <span style="font-size: 11px; font-style: italic; color: #4a5568;">Mahasiswa Doctoral TI UPI YPTK Padang</span>
+                                    </div>
+                                </div>
+                                <div style="border-top: 1px dashed #cbd5e0; padding-top: 15px; text-align: center;">
+                                    <div style="font-size: 12px; color: #3182ce; font-weight: 600; margin-bottom: 8px;">Processed Date: <span style="color: #2b6cb0; font-weight: normal;">{tanggal_valid}</span></div>
+                                    <div style="font-size: 11px; color: #718096;"><b style="color: #4a5568;">Data Source:</b> Sensor IoT Lokal, HSEL Prediction</div>
                                 </div>
                             </div>
                         </div>
@@ -728,16 +748,13 @@ else:
             folium_static(m, width=450, height=350)
 
             b64_html = base64.b64encode(framed_dashboard_html.encode('utf-8')).decode('utf-8')
-            
             custom_button_html = f"""
             <button onclick="openMap()" style="width: 100%; padding: 8px 16px; background-color: #ffffff; color: #333; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 14px; transition: 0.3s;" onmouseover="this.style.borderColor='#1f77b4'; this.style.color='#1f77b4'" onmouseout="this.style.borderColor='#ccc'; this.style.color='#333'">
-                🌐 Buka Dashboard Peta Penuh (Pekanbaru)
+                🌐 Buka Dashboard Pemantauan Terpadu (Pekanbaru)
             </button>
             <script>
             function openMap() {{
-                fetch(`data:text/html;base64,{b64_html}`).then(res => res.blob()).then(blob => {{
-                    window.open(URL.createObjectURL(blob), '_blank');
-                }});
+                fetch(`data:text/html;base64,{b64_html}`).then(res => res.blob()).then(blob => {{ window.open(URL.createObjectURL(blob), '_blank'); }});
             }}
             </script>
             """
@@ -766,9 +783,8 @@ else:
 
             logo_b64 = get_image_base64("logo.png")
             logo_upi_b64 = get_image_base64("logo upi yptk.png")
-
-            logo_img_tag = f'<img src="data:image/png;base64,{logo_b64}" style="height: 45px; background: white; padding: 4px; border-radius: 4px;" alt="Logo">' if logo_b64 else ''
-            logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 50px; height: auto;" alt="Logo UPI YPTK">' if logo_upi_b64 else ''
+            logo_img_tag = f'<img src="data:image/png;base64,{logo_b64}" style="height: 55px; background: white; padding: 4px; border-radius: 4px;" alt="Logo">' if logo_b64 else ''
+            logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 60px; height: auto;" alt="Logo UPI YPTK">' if logo_upi_b64 else ''
             
             regional_coords = [0.8500, 101.9000] 
             m_regional = folium.Map(location=regional_coords, zoom_start=7.5, control_scale=True, tiles='OpenStreetMap')
@@ -778,7 +794,6 @@ else:
             if riau_geojson_data:
                 riau_geojson = copy.deepcopy(riau_geojson_data) 
                 filtered_features = []
-                
                 for feature in riau_geojson['features']:
                     nama_wilayah = feature['properties'].get('nama', '').lower()
                     kab_kota = feature['properties'].get('kab_kota', '').lower()
@@ -801,25 +816,15 @@ else:
                         filtered_features.append(feature)
 
                 riau_geojson['features'] = filtered_features
-
-                folium.GeoJson(
-                    riau_geojson,
-                    style_function=lambda feature: {
-                        'fillColor': feature['properties']['warna_fill'],
-                        'color': '#333333', 
-                        'weight': 2,
-                        'fillOpacity': 0.7 if feature['properties']['warna_fill'] != "#9e9e9e" else 0.4,
-                    },
-                    tooltip=folium.GeoJsonTooltip(fields=['nama', 'tooltip_info'], aliases=['Kab/Kota:', 'Keterangan:'], style="font-weight: bold; font-size: 13px;")
-                ).add_to(m_regional)
+                folium.GeoJson(riau_geojson, style_function=lambda feature: {'fillColor': feature['properties']['warna_fill'], 'color': '#333333', 'weight': 2, 'fillOpacity': 0.7 if feature['properties']['warna_fill'] != "#9e9e9e" else 0.4}, tooltip=folium.GeoJsonTooltip(fields=['nama', 'tooltip_info'], aliases=['Kab/Kota:', 'Keterangan:'], style="font-weight: bold; font-size: 13px;")).add_to(m_regional)
                 
-                popup_pku_html = f"<div style='width: 200px; font-size: 12px;'><b>Pekanbaru:</b> {risk_label_pku}</div>"
-                folium.Marker(location=[0.5333, 101.4500], popup=folium.Popup(popup_pku_html), icon=folium.Icon(color=marker_color_pku, icon="info-sign")).add_to(m_regional)
+                popup_pku_html = f"<div style='width: 230px; font-size: 13px; line-height: 1.5;'><b>Wilayah:</b> Kota Pekanbaru<br><b>Prediksi:</b> {risk_label_pku}<br><b>Suhu:</b> {float(last_num[fitur[0]]):.1f} °C<br><b>Kelembapan:</b> {float(last_num[fitur[1]]):.1f} %<br><b>Curah Hujan:</b> {float(last_num[fitur[2]]):.1f} mm<br><b>Kecepatan Angin:</b> {float(last_num[fitur[3]]):.1f} m/s<br><b>Kelembaban Tanah:</b> {float(last_num[fitur[4]]):.1f} %<br><b>Waktu:</b> {last_row['Waktu']}</div>"
+                folium.Marker(location=[0.5333, 101.4500], popup=folium.Popup(popup_pku_html, max_width=250), icon=folium.Icon(color=marker_color_pku, icon="info-sign")).add_to(m_regional)
 
-                def get_dummy_popup(nama_daerah): return f"<div style='width: 200px; font-size: 12px;'><b>{nama_daerah}:</b> Menunggu Data</div>"
-                folium.Marker(location=[0.7490, 102.0460], popup=folium.Popup(get_dummy_popup("Kab. Siak")), icon=folium.Icon(color="gray", icon="info-sign")).add_to(m_regional)
-                folium.Marker(location=[0.2662, 101.6917], popup=folium.Popup(get_dummy_popup("Kab. Pelalawan")), icon=folium.Icon(color="gray", icon="info-sign")).add_to(m_regional)
-                folium.Marker(location=[1.4789, 102.1444], popup=folium.Popup(get_dummy_popup("Kab. Bengkalis")), icon=folium.Icon(color="gray", icon="info-sign")).add_to(m_regional)
+                def get_dummy_popup(nama_daerah): return f"<div style='width: 230px; font-size: 13px; line-height: 1.5;'><b>Wilayah:</b> {nama_daerah}<br><b>Prediksi:</b> Unknown / Menunggu Data<br><b>Suhu:</b> Unknown<br><b>Kelembapan:</b> Unknown<br><b>Curah Hujan:</b> Unknown<br><b>Kecepatan Angin:</b> Unknown<br><b>Kelembaban Tanah:</b> Unknown<br><b>Waktu:</b> -</div>"
+                folium.Marker(location=[0.7490, 102.0460], popup=folium.Popup(get_dummy_popup("Kabupaten Siak"), max_width=250), icon=folium.Icon(color="gray", icon="info-sign")).add_to(m_regional)
+                folium.Marker(location=[0.2662, 101.6917], popup=folium.Popup(get_dummy_popup("Kabupaten Pelalawan"), max_width=250), icon=folium.Icon(color="gray", icon="info-sign")).add_to(m_regional)
+                folium.Marker(location=[1.4789, 102.1444], popup=folium.Popup(get_dummy_popup("Kabupaten Bengkalis"), max_width=250), icon=folium.Icon(color="gray", icon="info-sign")).add_to(m_regional)
 
             raw_map_html = m_regional.get_root().render()
 
@@ -831,17 +836,54 @@ else:
                         <div style="display: flex; align-items: center; gap: 15px;">
                             {logo_img_tag}
                             <div>
-                                <h2 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.5px;">Pemantauan Regional</h2>
-                                <p style="margin: 5px 0 0 0; font-size: 12px; color: #d1e8ff;">Tahap Perluasan Integrasi Sensor IoT</p>
+                                <h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.5px;">Pemantauan Regional (Pekanbaru, Siak, Pelalawan, Bengkalis)</h2>
+                                <p style="margin: 5px 0 0 0; font-size: 13px; color: #d1e8ff;">Tahap Perluasan Integrasi Sensor IoT</p>
                             </div>
                         </div>
-                        <div style="text-align: right; font-size: 13px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 8px;">
-                            <b>Domain:</b> Sebagian Wilayah Riau<br>
-                            <span style="color: #e2f0ff;">{tanggal_valid}</span>
+                        <div style="text-align: right; font-size: 13px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
+                            <b style="font-size: 14px; letter-spacing: 0.5px;">Domain:</b> Sebagian Wilayah Riau<br>
+                            <span style="color: #e2f0ff;"><b>Valid/Berlaku:</b> {tanggal_valid}</span>
                         </div>
                     </div>
                     
                     <div style="display: flex; gap: 20px; flex-grow: 1; height: calc(100% - 95px); overflow: hidden;">
+                        
+                        <div style="width: 330px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; padding-right: 5px;">
+                            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px;">
+                                <b style="font-size: 14px; color: #2d3748; display: block; border-bottom: 2px solid #edf2f7; padding-bottom: 12px; margin-bottom: 15px; text-transform: uppercase;">Legenda Status Kawasan</b>
+                                <div style="font-size: 13px; color: #4a5568; line-height: 2.4;">
+                                    <div style="display: flex; align-items: center;"><i style="background: blue; width: 14px; height: 14px; border-radius: 50%; margin-right: 12px;"></i> Risiko Rendah</div>
+                                    <div style="display: flex; align-items: center;"><i style="background: green; width: 14px; height: 14px; border-radius: 50%; margin-right: 12px;"></i> Risiko Sedang</div>
+                                    <div style="display: flex; align-items: center;"><i style="background: orange; width: 14px; height: 14px; border-radius: 50%; margin-right: 12px;"></i> Risiko Tinggi</div>
+                                    <div style="display: flex; align-items: center;"><i style="background: red; width: 14px; height: 14px; border-radius: 50%; margin-right: 12px;"></i> Risiko Sangat Tinggi</div>
+                                    <div style="height: 1px; background: #edf2f7; margin: 12px 0;"></div>
+                                    <div style="display: flex; align-items: center;"><i style="background: #9e9e9e; width: 14px; height: 14px; border-radius: 50%; margin-right: 12px;"></i> <b style="color: #2d3748;">Menunggu Data IoT</b></div>
+                                </div>
+                            </div>
+
+                            <div style="background: #fffaf0; border: 1px solid #feebc8; border-left: 5px solid #ed8936; border-radius: 8px; padding: 18px; color: #9c4221;">
+                                <b style="font-size: 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">💡 Catatan Sistem</b>
+                                <span style="font-size: 13px; line-height: 1.6; display: block;">Pemantauan <i>real-time</i> aktif di Pekanbaru. Kab. Siak, Kab. Pelalawan, dan Kab. Bengkalis dalam tahap persiapan.</span>
+                            </div>
+
+                            <div style="flex-grow: 1;"></div>
+
+                            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px;">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 18px;">
+                                    {logo_upi_tag}
+                                    <div style="text-align: left; line-height: 1.5;">
+                                        <b style="font-size: 11px; color: #718096; text-transform: uppercase;">Produced By</b><br>
+                                        <span style="font-size: 13px; font-weight: bold; color: #2d3748;">Model HSEL Terintegrasi IoT</span><br>
+                                        <span style="font-size: 11px; font-style: italic; color: #4a5568;">Mahasiswa Doctoral TI UPI YPTK Padang</span>
+                                    </div>
+                                </div>
+                                <div style="border-top: 1px dashed #cbd5e0; padding-top: 15px; text-align: center;">
+                                    <div style="font-size: 12px; color: #3182ce; font-weight: 600; margin-bottom: 8px;">Processed Date: <span style="color: #2b6cb0; font-weight: normal;">{tanggal_valid}</span></div>
+                                    <div style="font-size: 11px; color: #718096;"><b style="color: #4a5568;">Data Source:</b> Sensor IoT Lokal, HSEL Prediction</div>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div style="flex-grow: 1; border: 2px solid #e2e8f0; border-radius: 10px; overflow: hidden; position: relative;">
             """
             
@@ -849,16 +891,13 @@ else:
             framed_dashboard_html = raw_map_html.replace('<body>', custom_css_and_layout_start).replace('</body>', custom_layout_end)
 
             b64_html = base64.b64encode(framed_dashboard_html.encode('utf-8')).decode('utf-8')
-            
             custom_button_html = f"""
             <button onclick="openMapRegional()" style="width: 100%; padding: 8px 16px; background-color: #e67e22; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 14px; margin-top: 10px; font-weight: bold; transition: 0.3s;" onmouseover="this.style.backgroundColor='#d35400'" onmouseout="this.style.backgroundColor='#e67e22'">
                 🗺️ Buka Dashboard Pemantauan Regional
             </button>
             <script>
             function openMapRegional() {{
-                fetch(`data:text/html;base64,{b64_html}`).then(res => res.blob()).then(blob => {{
-                    window.open(URL.createObjectURL(blob), '_blank');
-                }});
+                fetch(`data:text/html;base64,{b64_html}`).then(res => res.blob()).then(blob => {{ window.open(URL.createObjectURL(blob), '_blank'); }});
             }}
             </script>
             """
@@ -884,8 +923,8 @@ else:
             # === TOMBOL KE-3: MULTIMODAL NEW TAB ===
             st.markdown("""
             <a href="?page=multimodal" target="_blank" style="text-decoration: none;">
-                <button style="width: 100%; padding: 12px 16px; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 15px; margin-top: 10px; font-weight: bold; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
-                    📸 Buka Dashboard Multimodal (Hybrid YOLO-ViT+GRU + IoT)
+                <button style="width: 100%; padding: 12px 16px; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 14px; margin-top: 5px; font-weight: bold; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
+                    📸 Buka Dashboard Multimodal (Hybrid YOLO-ViT+GRU & IoT)
                 </button>
             </a>
             """, unsafe_allow_html=True)
@@ -893,10 +932,9 @@ else:
         with col_kanan:
             st.markdown("<h5 style='text-align: center;'>IoT Smart Fire Prediction</h5>", unsafe_allow_html=True)
             try:
-                image = Image.open("forestiot4.jpg")
-                st.image(image.resize((480, 360)))
+                st.image(Image.open("forestiot4.jpg").resize((480, 360)))
             except Exception:
-                st.info("Gambar 'forestiot4.jpg' tidak ditemukan di direktori aplikasi.")
+                st.info("Gambar 'forestiot4.jpg' tidak ditemukan di direktori.")
                     
         if res[0] is not None and not isinstance(res[0], str):
             df, clean_df, scaled_all, fitur = res
@@ -939,8 +977,7 @@ else:
 
             if not df_chart.empty:
                 df_chart = df_chart.set_index('Waktu_DT')
-                df_daily = df_chart[fitur].resample('D').mean().dropna()
-                df_daily = df_daily.tail(15)
+                df_daily = df_chart[fitur].resample('D').mean().dropna().tail(15)
 
                 chart_rename = {
                     'Tavg: Temperatur rata-rata (°C)': 'Suhu (°C)',
@@ -954,15 +991,11 @@ else:
 
                 x_axis = alt.X('Waktu_DT:T', axis=alt.Axis(format='%d %b %Y', title='Tanggal', labelAngle=-45, grid=False, tickCount=df_vis.shape[0]))
 
-                tab_all, tab1, tab2, tab3, tab4, tab5 = st.tabs([
-                    "📈 Semua Data", "🌡️ Suhu Udara", "💧 Kelembapan Udara", "🌧️ Curah Hujan", "💨 Kecepatan Angin", "🌱 Kelembapan Tanah"
-                ])
+                tab_all, tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Semua Data", "🌡️ Suhu Udara", "💧 Kelembapan Udara", "🌧️ Curah Hujan", "💨 Kecepatan Angin", "🌱 Kelembapan Tanah"])
 
                 with tab_all:
                     df_melted = df_vis.melt(id_vars=['Waktu_DT'], var_name='Parameter Sensor', value_name='Nilai')
-                    satuan_map = {
-                        'Suhu (°C)': '°C', 'Kelembapan (%)': '%', 'Curah Hujan (mm)': 'mm', 'Kecepatan Angin (m/s)': 'm/s', 'Kelembaban Tanah (%)': '%'
-                    }
+                    satuan_map = {'Suhu (°C)': '°C', 'Kelembapan (%)': '%', 'Curah Hujan (mm)': 'mm', 'Kecepatan Angin (m/s)': 'm/s', 'Kelembaban Tanah (%)': '%'}
                     df_melted['Satuan'] = df_melted['Parameter Sensor'].map(satuan_map)
                     df_melted['LabelText'] = df_melted.apply(lambda row: f"{row['Nilai']:.1f} {row['Satuan']}", axis=1)
                     
@@ -976,13 +1009,8 @@ else:
                         tooltip=['Waktu_DT:T', 'Parameter Sensor:N', alt.Tooltip('Nilai:Q', format='.1f')]
                     )
 
-                    points = chart_base.mark_circle(size=60, opacity=0.8).encode(
-                        opacity=alt.condition(selection, alt.value(1), alt.value(0.1))
-                    )
-
-                    text_labels = chart_base.mark_text(
-                        align='center', baseline='bottom', dy=-10, fontSize=11, fontWeight='bold'
-                    ).encode(text=alt.Text('LabelText:N'), opacity=alt.condition(selection, alt.value(1), alt.value(0)))
+                    points = chart_base.mark_circle(size=60, opacity=0.8).encode(opacity=alt.condition(selection, alt.value(1), alt.value(0.1)))
+                    text_labels = chart_base.mark_text(align='center', baseline='bottom', dy=-10, fontSize=11, fontWeight='bold').encode(text=alt.Text('LabelText:N'), opacity=alt.condition(selection, alt.value(1), alt.value(0)))
 
                     chart_all = (chart_base + points + text_labels).add_params(selection).properties(height=450).interactive()
                     st.altair_chart(chart_all, use_container_width=True)
@@ -1010,8 +1038,6 @@ else:
                 with tab5:
                     chart_soil = alt.Chart(df_vis).mark_line(color="#33ff5e", strokeWidth=3, point=alt.OverlayMarkDef(color="#33ff5e", size=50)).encode(x=x_axis, y=alt.Y('Kelembaban Tanah (%):Q'), tooltip=['Waktu_DT:T', alt.Tooltip('Kelembaban Tanah (%):Q', format='.1f')]).properties(height=350).interactive()
                     st.altair_chart(chart_soil, use_container_width=True)
-            else:
-                st.info("Data tidak dapat diproses untuk grafik. Pastikan format kolom Waktu pada file CSV valid.")
 
             st.markdown("<div class='section-title'>Data Sensor Lengkap</div>", unsafe_allow_html=True)
             st.dataframe(df, use_container_width=True)
@@ -1024,11 +1050,7 @@ else:
                 return output.getvalue()
 
             df_xlsx = to_excel(df)
-            st.download_button(
-                label="📥 Download Hasil Prediksi Kebakaran sebagai XLSX",
-                data=df_xlsx, file_name="hasil_prediksi_kebakaran.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            st.download_button(label="📥 Download Hasil Prediksi", data=df_xlsx, file_name="hasil_prediksi_kebakaran.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     main_dashboard()
 
@@ -1041,28 +1063,17 @@ else:
     if "manual_result" not in st.session_state: st.session_state.manual_result = None
 
     def reset_manual():
-        st.session_state.man_suhu = 0.0
-        st.session_state.man_kel = 0.0
-        st.session_state.man_curah = 0.0
-        st.session_state.man_angin = 0.0
-        st.session_state.man_tanah = 0.0
+        st.session_state.man_suhu, st.session_state.man_kel, st.session_state.man_curah, st.session_state.man_angin, st.session_state.man_tanah = 0.0, 0.0, 0.0, 0.0, 0.0
         st.session_state.manual_result = None
 
     def do_predict_manual():
-        input_df = pd.DataFrame([{
-            'Tavg: Temperatur rata-rata (°C)': st.session_state.man_suhu,
-            'RH_avg: Kelembapan rata-rata (%)': st.session_state.man_kel,
-            'RR: Curah hujan (mm)': st.session_state.man_curah,
-            'ff_avg: Kecepatan angin rata-rata (m/s)': st.session_state.man_angin,
-            'Kelembaban Permukaan Tanah': st.session_state.man_tanah
-        }])
+        input_df = pd.DataFrame([{'Tavg: Temperatur rata-rata (°C)': st.session_state.man_suhu, 'RH_avg: Kelembapan rata-rata (%)': st.session_state.man_kel, 'RR: Curah hujan (mm)': st.session_state.man_curah, 'ff_avg: Kecepatan angin rata-rata (m/s)': st.session_state.man_angin, 'Kelembaban Permukaan Tanah': st.session_state.man_tanah}])
         scaled_manual = scaler.transform(input_df)
         st.session_state.manual_result = convert_to_label(model.predict(scaled_manual)[0])
 
     @st.fragment
     def manual_prediction_ui():
         st.markdown("<div class='section-title' style='margin-top: 30px;'>Pengujian Menggunakan Data Meteorologi Manual</div>", unsafe_allow_html=True)
-        st.markdown("<div class='stCard'>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns(3)
         with col1:
             st.number_input("Suhu Udara (°C)", key="man_suhu")
@@ -1073,33 +1084,25 @@ else:
         with col3:
             st.number_input("Kelembaban Tanah (%)", key="man_tanah")
 
-        btn_pred, btn_reset, _ = st.columns([2, 2, 8])
-        with btn_pred: st.button("🔍 Prediksi Manual", on_click=do_predict_manual, use_container_width=True)
-        with btn_reset: st.button("🧼 Reset Manual", on_click=reset_manual, use_container_width=True)
+        btn_pred, btn_reset, _ = st.columns([1, 1, 8])
+        with btn_pred: st.button("🔍 Prediksi Manual", on_click=do_predict_manual)
+        with btn_reset: st.button("🧼 Reset Manual", on_click=reset_manual)
 
         if st.session_state.manual_result:
             hasil = st.session_state.manual_result
             font, bg = risk_styles.get(hasil, ("black", "white"))
-            st.markdown(
-                f"<div style='color:{font}; background-color:{bg}; padding:15px; border-radius:8px; margin-top:20px; font-size:16px; text-align:center;'>"
-                f"Prediksi Risiko Kebakaran: <b>{hasil}</b></div>", unsafe_allow_html=True
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top:15px;'>Prediksi Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True)
 
     if "txt_input" not in st.session_state: st.session_state.txt_input = ""
     if "txt_result" not in st.session_state: st.session_state.txt_result = None
     if "txt_preprocessing" not in st.session_state: st.session_state.txt_preprocessing = {}
 
     def reset_text():
-        st.session_state.txt_input = ""
-        st.session_state.txt_result = None
-        st.session_state.txt_preprocessing = {}
+        st.session_state.txt_input, st.session_state.txt_result, st.session_state.txt_preprocessing = "", None, {}
 
     def do_predict_text():
-        if st.session_state.txt_input.strip() == "":
-            st.warning("Harap masukkan deskripsi teks terlebih dahulu.")
-        elif vectorizer is None or model_text is None:
-            st.error("Model teks gagal dimuat.")
+        if st.session_state.txt_input.strip() == "": st.warning("Harap masukkan deskripsi teks.")
+        elif vectorizer is None or model_text is None: st.error("Model teks gagal dimuat.")
         else:
             try:
                 raw_text = st.session_state.txt_input
@@ -1125,60 +1128,43 @@ else:
                 except: pass
 
                 pred = model_text.predict(X_trans)[0]
-                label_text = convert_to_label(pred)
-
-                st.session_state.txt_preprocessing = {
-                    "raw": raw_text, "case_folding": text_lower, "cleansing": text_clean, "stopword": text_stopword, "tokenizing": token_display, "stemming": text_stemmed, "tfidf_df": df_tfidf, "prob_dict": prob_dict
-                }
-                st.session_state.txt_result = label_text
-
-            except Exception as e:
-                st.error(f"Terjadi kesalahan saat memproses input teks: {e}")
+                st.session_state.txt_preprocessing = {"raw": raw_text, "case_folding": text_lower, "cleansing": text_clean, "stopword": text_stopword, "tokenizing": token_display, "stemming": text_stemmed, "tfidf_df": df_tfidf, "prob_dict": prob_dict}
+                st.session_state.txt_result = convert_to_label(pred)
+            except Exception as e: st.error(f"Terjadi kesalahan saat memproses input teks: {e}")
 
     @st.fragment
     def text_prediction_ui():
         st.markdown("<div class='section-title' style='margin-top: 20px;'>Pengujian Menggunakan Data Teks</div>", unsafe_allow_html=True)
-        st.markdown("<div class='stCard'>", unsafe_allow_html=True)
         st.text_area("Masukkan deskripsi lingkungan:", key="txt_input", height=120)
 
-        btn_pred_text, btn_reset_text, _ = st.columns([2, 2, 8])
-        with btn_pred_text: st.button("🔍 Prediksi Teks", on_click=do_predict_text, use_container_width=True)
-        with btn_reset_text: st.button("🧼 Reset Teks", on_click=reset_text, use_container_width=True)
+        btn_pred_text, btn_reset_text, _ = st.columns([1, 1, 8])
+        with btn_pred_text: st.button("🔍 Prediksi Teks", on_click=do_predict_text)
+        with btn_reset_text: st.button("🧼 Reset Teks", on_click=reset_text)
             
         if st.session_state.txt_result:
             with st.expander("🛠️ Klik untuk melihat hasil setiap tahapan Pre-processing & Keputusan Model", expanded=False):
                 steps = st.session_state.txt_preprocessing
                 if steps:
-                    st.markdown("**1. Original Text**")
-                    st.info(steps.get("raw", "-"))
-                    st.markdown("**2. Cleansing (Penghapusan Karakter Khusus & Angka)**")
-                    st.info(steps.get("cleansing", "-"))
-                    st.markdown("**3. Stopword (Penghapusan Kata)**")
-                    st.info(steps.get("stopword", "-"))
-                    st.markdown("**4. Tokenization (Pemenggalan Kata)**")
-                    st.info(steps.get("tokenizing", "[]"))
-                    st.markdown("**5. Stemming (Pemotongan Imbuhan)**")
-                    st.info(steps.get("stemming", "-"))
+                    st.markdown("**1. Original Text**"); st.info(steps.get("raw", "-"))
+                    st.markdown("**2. Cleansing**"); st.info(steps.get("cleansing", "-"))
+                    st.markdown("**3. Stopword**"); st.info(steps.get("stopword", "-"))
+                    st.markdown("**4. Tokenization**"); st.info(steps.get("tokenizing", "[]"))
+                    st.markdown("**5. Stemming**"); st.info(steps.get("stemming", "-"))
                     st.markdown("**6. Ekstraksi Fitur (TF-IDF)**")
                     df_tfidf_display = steps.get("tfidf_df")
                     if df_tfidf_display is not None and not df_tfidf_display.empty: st.dataframe(df_tfidf_display, use_container_width=True)
-                    else: st.warning("Kata-kata pada input ini tidak dikenali dalam kosakata model Anda.")
+                    else: st.warning("Kata-kata pada input ini tidak dikenali.")
 
-                    st.markdown("**7. Analisis Keputusan Model (Probabilitas HSEL)**")
+                    st.markdown("**7. Probabilitas HSEL**")
                     prob_dict = steps.get("prob_dict")
                     if prob_dict:
                         for label, prob in prob_dict.items():
                             st.markdown(f"**{label}** ({prob*100:.1f}%)")
                             st.progress(float(prob))
-                    else: st.info("Model ini tidak menyediakan metrik probabilitas.")
 
             hasil = st.session_state.txt_result
             font, bg = risk_styles.get(hasil, ("black", "white"))
-            st.markdown(
-                f"<div style='color:{font}; background-color:{bg}; padding:15px; border-radius:8px; margin-top:20px; font-size:16px; text-align:center;'>"
-                f"Prediksi Risiko Kebakaran: <b>{hasil}</b></div>", unsafe_allow_html=True
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top: 15px; font-size: 16px;'>Hasil Prediksi Tingkat Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True)
 
     manual_prediction_ui()
     text_prediction_ui()
@@ -1186,8 +1172,8 @@ else:
     # === FOOTER ===
     st.markdown("<br><hr>", unsafe_allow_html=True)
     st.markdown("""
-    <div style='margin-top: 20px; background-color: #2c3e50; padding: 15px 20px; border-radius: 12px; text-align: center; color: white;'>
-        <p style='margin: 0; font-size: 26px; font-weight: bold; line-height: 1.2;'>Smart Fire Prediction HSEL Model</p>
-        <p style='margin: 0; font-size: 14px; line-height: 1.5; color:#bdc3c7;'>Sistem Cerdas Peringatan Dini Kebakaran Lahan<br>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
+    <div style='margin-top: 20px; background-color: black; padding: 10px 20px; border-radius: 10px; text-align: center; color: white;'>
+        <p style='margin: 0; font-size: 30px; font-weight: bold; line-height: 1.2;'>Smart Fire Prediction HSEL Model</p>
+        <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
     </div>
     """, unsafe_allow_html=True)
