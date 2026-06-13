@@ -4,12 +4,12 @@ numpy
 scikit-learn
 joblib
 xlsxwriter
-plotly
-streamlit-autorefresh
 folium
 streamlit-folium
-imbalanced-learn
-scipy
 Sastrawi
 shap
 matplotlib
+requests
+ultralytics
+opencv-python-headless
+Pillow
