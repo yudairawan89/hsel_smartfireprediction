@@ -256,12 +256,9 @@ if current_page == "multimodal":
             else:
                 st.session_state.yolo_fire_detected = None
                 try:
-                    st.image(Image.open("hutan.png"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
+                    st.image(Image.open("forestiot4.jpg"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
                 except Exception:
-                    try: 
-                        st.image(Image.open("forestiot4.jpg"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
-                    except:
-                        st.info("Menunggu input visual...")
+                    st.info("Menunggu input visual...")
                 
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -269,6 +266,10 @@ if current_page == "multimodal":
         with col_sensor:
             @st.fragment(run_every=7)
             def sensor_and_decision_fragment():
+                # Inisialisasi default agar tidak terjadi NameError jika gagal render
+                tanggal_valid = "Memuat data..."
+                hsel_risk = "Menunggu Data"
+                
                 df_raw = load_data()
                 res = preprocess_sensor_data(df_raw)
                 
@@ -280,7 +281,6 @@ if current_page == "multimodal":
                     last_num = clean_df.iloc[-1]
                     hsel_risk = last_row["Prediksi Kebakaran"]
                     
-                    # Definisikan tanggal_valid
                     waktu = pd.to_datetime(last_row['Waktu'], errors='coerce')
                     if pd.isna(waktu):
                         try: waktu = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
@@ -320,7 +320,6 @@ if current_page == "multimodal":
                         
                         popup_html = f"<b>Pekanbaru</b><br>HSEL: {hsel_risk}"
                         folium.Marker(location=[0.5333, 101.4500], popup=popup_html, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m_mini)
-                        
                         folium_static(m_mini, width=360, height=260)
                         
                     with cm2:
@@ -378,29 +377,29 @@ if current_page == "multimodal":
                         </div>
                         """, unsafe_allow_html=True)
                         
-                    # === 4. PRODUCED BY ===
-                    logo_upi_b64 = get_image_base64("logo upi yptk.png")
-                    logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 80px; height: auto;" alt="Logo">' if logo_upi_b64 else ''
-                    
-                    st.markdown(f"""
-                    <div style="background: #fdfdfd; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-top:30px; box-shadow: 0 4px 8px rgba(0,0,0,0.05);">
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 15px;">
-                            {logo_upi_tag}
-                            <div style="text-align: left; line-height: 1.5;">
-                                <b style="font-size: 12px; color: #718096; text-transform: uppercase; letter-spacing: 1px;">Produced By</b><br>
-                                <span style="font-size: 16px; font-weight: bold; color: #2d3748;">Multimodal HSEL & Hybrid YOLO</span><br>
-                                <span style="font-size: 13px; font-style: italic; color: #4a5568;">Mahasiswa Doctoral TI UPI YPTK Padang</span>
-                            </div>
-                        </div>
-                        <div style="border-top: 1px dashed #cbd5e0; padding-top: 12px; text-align: center;">
-                            <div style="font-size: 13px; color: #3182ce; font-weight: 600; margin-bottom: 5px;">Processed: <span style="color: #2b6cb0; font-weight: normal;">{tanggal_valid}</span></div>
-                            <div style="font-size: 12px; color: #718096;">Data Source: Sensor IoT Lokal & Vision AI</div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
                 else:
                     st.warning("⚠️ Data IoT Terputus atau Tidak Tersedia.")
+                    
+                # === 4. PRODUCED BY (BERADA DI DALAM FRAGMENT AGAR AMAN DARI ERROR) ===
+                logo_upi_b64 = get_image_base64("logo upi yptk.png")
+                logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 80px; height: auto;" alt="Logo">' if logo_upi_b64 else ''
+                
+                st.markdown(f"""
+                <div style="background: #fdfdfd; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-top:30px; box-shadow: 0 4px 8px rgba(0,0,0,0.05);">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 15px;">
+                        {logo_upi_tag}
+                        <div style="text-align: left; line-height: 1.5;">
+                            <b style="font-size: 12px; color: #718096; text-transform: uppercase; letter-spacing: 1px;">Produced By</b><br>
+                            <span style="font-size: 16px; font-weight: bold; color: #2d3748;">Multimodal HSEL & Hybrid YOLO</span><br>
+                            <span style="font-size: 13px; font-style: italic; color: #4a5568;">Mahasiswa Doctoral TI UPI YPTK Padang</span>
+                        </div>
+                    </div>
+                    <div style="border-top: 1px dashed #cbd5e0; padding-top: 12px; text-align: center;">
+                        <div style="font-size: 13px; color: #3182ce; font-weight: 600; margin-bottom: 5px;">Processed: <span style="color: #2b6cb0; font-weight: normal;">{tanggal_valid}</span></div>
+                        <div style="font-size: 12px; color: #718096;">Data Source: Sensor IoT Lokal & Vision AI</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 
                 st.markdown("</div>", unsafe_allow_html=True)
                 
@@ -1099,17 +1098,28 @@ else:
     if "manual_result" not in st.session_state: st.session_state.manual_result = None
 
     def reset_manual():
-        st.session_state.man_suhu, st.session_state.man_kel, st.session_state.man_curah, st.session_state.man_angin, st.session_state.man_tanah = 0.0, 0.0, 0.0, 0.0, 0.0
+        st.session_state.man_suhu = 0.0
+        st.session_state.man_kel = 0.0
+        st.session_state.man_curah = 0.0
+        st.session_state.man_angin = 0.0
+        st.session_state.man_tanah = 0.0
         st.session_state.manual_result = None
 
     def do_predict_manual():
-        input_df = pd.DataFrame([{'Tavg: Temperatur rata-rata (°C)': st.session_state.man_suhu, 'RH_avg: Kelembapan rata-rata (%)': st.session_state.man_kel, 'RR: Curah hujan (mm)': st.session_state.man_curah, 'ff_avg: Kecepatan angin rata-rata (m/s)': st.session_state.man_angin, 'Kelembaban Permukaan Tanah': st.session_state.man_tanah}])
+        input_df = pd.DataFrame([{
+            'Tavg: Temperatur rata-rata (°C)': st.session_state.man_suhu,
+            'RH_avg: Kelembapan rata-rata (%)': st.session_state.man_kel,
+            'RR: Curah hujan (mm)': st.session_state.man_curah,
+            'ff_avg: Kecepatan angin rata-rata (m/s)': st.session_state.man_angin,
+            'Kelembaban Permukaan Tanah': st.session_state.man_tanah
+        }])
         scaled_manual = scaler.transform(input_df)
         st.session_state.manual_result = convert_to_label(model.predict(scaled_manual)[0])
 
     @st.fragment
     def manual_prediction_ui():
         st.markdown("<div class='section-title' style='margin-top: 30px;'>Pengujian Menggunakan Data Meteorologi Manual</div>", unsafe_allow_html=True)
+        
         col1, col2, col3 = st.columns(3)
         with col1:
             st.number_input("Suhu Udara (°C)", key="man_suhu")
@@ -1121,24 +1131,33 @@ else:
             st.number_input("Kelembaban Tanah (%)", key="man_tanah")
 
         btn_pred, btn_reset, _ = st.columns([1, 1, 8])
-        with btn_pred: st.button("🔍 Prediksi Manual", on_click=do_predict_manual)
-        with btn_reset: st.button("🧼 Reset Manual", on_click=reset_manual)
+        with btn_pred:
+            st.button("🔍 Prediksi Manual", on_click=do_predict_manual)
+        with btn_reset:
+            st.button("🧼 Reset Manual", on_click=reset_manual)
 
         if st.session_state.manual_result:
             hasil = st.session_state.manual_result
             font, bg = risk_styles.get(hasil, ("black", "white"))
-            st.markdown(f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top:15px;'>Prediksi Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True)
+            st.markdown(
+                f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top:15px;'>"
+                f"Prediksi Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True
+            )
 
     if "txt_input" not in st.session_state: st.session_state.txt_input = ""
     if "txt_result" not in st.session_state: st.session_state.txt_result = None
     if "txt_preprocessing" not in st.session_state: st.session_state.txt_preprocessing = {}
 
     def reset_text():
-        st.session_state.txt_input, st.session_state.txt_result, st.session_state.txt_preprocessing = "", None, {}
+        st.session_state.txt_input = ""
+        st.session_state.txt_result = None
+        st.session_state.txt_preprocessing = {}
 
     def do_predict_text():
-        if st.session_state.txt_input.strip() == "": st.warning("Harap masukkan deskripsi teks.")
-        elif vectorizer is None or model_text is None: st.error("Model teks gagal dimuat.")
+        if st.session_state.txt_input.strip() == "":
+            st.warning("Harap masukkan deskripsi teks terlebih dahulu.")
+        elif vectorizer is None or model_text is None:
+            st.error("Model teks gagal dimuat. Pastikan file 'tfidf_vectorizer.joblib' dan 'stacking_text_model.joblib' berada di direktori aplikasi.")
         else:
             try:
                 raw_text = st.session_state.txt_input
@@ -1153,54 +1172,86 @@ else:
                 feature_names = vectorizer.get_feature_names_out()
                 dense_vector = X_trans.todense().tolist()[0]
 
-                tfidf_details = [{"Kata (Term)": word, "Skor TF-IDF": round(score, 4)} for word, score in zip(feature_names, dense_vector) if score > 0]
+                tfidf_details = [{"Kata (Term)": word, "Skor TF-IDF": round(score, 4)}
+                                 for word, score in zip(feature_names, dense_vector) if score > 0]
                 tfidf_details = sorted(tfidf_details, key=lambda x: x["Skor TF-IDF"], reverse=True)
                 df_tfidf = pd.DataFrame(tfidf_details)
 
                 prob_dict = {}
                 try:
                     proba = model_text.predict_proba(X_trans)[0]
-                    prob_dict = {"Low / Rendah": proba[0], "Moderate / Sedang": proba[1], "High / Tinggi": proba[2], "Very High / Sangat Tinggi": proba[3]}
-                except: pass
+                    prob_dict = {
+                        "Low / Rendah": proba[0],
+                        "Moderate / Sedang": proba[1],
+                        "High / Tinggi": proba[2],
+                        "Very High / Sangat Tinggi": proba[3]
+                    }
+                except Exception:
+                    pass
 
                 pred = model_text.predict(X_trans)[0]
-                st.session_state.txt_preprocessing = {"raw": raw_text, "case_folding": text_lower, "cleansing": text_clean, "stopword": text_stopword, "tokenizing": token_display, "stemming": text_stemmed, "tfidf_df": df_tfidf, "prob_dict": prob_dict}
-                st.session_state.txt_result = convert_to_label(pred)
-            except Exception as e: st.error(f"Terjadi kesalahan saat memproses input teks: {e}")
+                label_text = convert_to_label(pred)
+
+                st.session_state.txt_preprocessing = {
+                    "raw": raw_text, "case_folding": text_lower, "cleansing": text_clean,
+                    "stopword": text_stopword, "tokenizing": token_display, "stemming": text_stemmed,
+                    "tfidf_df": df_tfidf, "prob_dict": prob_dict
+                }
+                st.session_state.txt_result = label_text
+
+            except Exception as e:
+                st.error(f"Terjadi kesalahan saat memproses input teks: {e}")
 
     @st.fragment
     def text_prediction_ui():
         st.markdown("<div class='section-title' style='margin-top: 20px;'>Pengujian Menggunakan Data Teks</div>", unsafe_allow_html=True)
+
         st.text_area("Masukkan deskripsi lingkungan:", key="txt_input", height=120)
 
         btn_pred_text, btn_reset_text, _ = st.columns([1, 1, 8])
-        with btn_pred_text: st.button("🔍 Prediksi Teks", on_click=do_predict_text)
-        with btn_reset_text: st.button("🧼 Reset Teks", on_click=reset_text)
+        with btn_pred_text:
+            st.button("🔍 Prediksi Teks", on_click=do_predict_text)
+        with btn_reset_text:
+            st.button("🧼 Reset Teks", on_click=reset_text)
             
         if st.session_state.txt_result:
             with st.expander("🛠️ Klik untuk melihat hasil setiap tahapan Pre-processing & Keputusan Model", expanded=False):
                 steps = st.session_state.txt_preprocessing
                 if steps:
-                    st.markdown("**1. Original Text**"); st.info(steps.get("raw", "-"))
-                    st.markdown("**2. Cleansing**"); st.info(steps.get("cleansing", "-"))
-                    st.markdown("**3. Stopword**"); st.info(steps.get("stopword", "-"))
-                    st.markdown("**4. Tokenization**"); st.info(steps.get("tokenizing", "[]"))
-                    st.markdown("**5. Stemming**"); st.info(steps.get("stemming", "-"))
-                    st.markdown("**6. Ekstraksi Fitur (TF-IDF)**")
+                    st.markdown("**1. Original Text**")
+                    st.info(steps.get("raw", "-"))
+                    st.markdown("**2. Case Folding (Pengecilan Huruf)**")
+                    st.info(steps.get("case_folding", "-"))
+                    st.markdown("**3. Cleansing (Penghapusan Karakter Khusus & Angka)**")
+                    st.info(steps.get("cleansing", "-"))
+                    st.markdown("**4. Stopword (Penghapusan Kata)**")
+                    st.info(steps.get("stopword", "-"))
+                    st.markdown("**5. Tokenization (Pemenggalan Kata)**")
+                    st.info(steps.get("tokenizing", "[]"))
+                    st.markdown("**6. Stemming (Pemotongan Imbuhan)**")
+                    st.info(steps.get("stemming", "-"))
+                    st.markdown("**7. Ekstraksi Fitur (TF-IDF)**")
                     df_tfidf_display = steps.get("tfidf_df")
-                    if df_tfidf_display is not None and not df_tfidf_display.empty: st.dataframe(df_tfidf_display, use_container_width=True)
-                    else: st.warning("Kata-kata pada input ini tidak dikenali.")
+                    if df_tfidf_display is not None and not df_tfidf_display.empty:
+                        st.dataframe(df_tfidf_display, use_container_width=True)
+                    else:
+                        st.warning("Kata-kata pada input ini tidak dikenali dalam kosakata (vocabulary) model Anda.")
 
-                    st.markdown("**7. Probabilitas HSEL**")
+                    st.markdown("**8. Analisis Keputusan Model (Probabilitas HSEL)**")
                     prob_dict = steps.get("prob_dict")
                     if prob_dict:
                         for label, prob in prob_dict.items():
                             st.markdown(f"**{label}** ({prob*100:.1f}%)")
                             st.progress(float(prob))
+                    else:
+                        st.info("Model ini tidak menyediakan metrik probabilitas.")
 
             hasil = st.session_state.txt_result
             font, bg = risk_styles.get(hasil, ("black", "white"))
-            st.markdown(f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top: 15px; font-size: 16px;'>Hasil Prediksi Tingkat Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True)
+            st.markdown(
+                f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top: 15px; font-size: 16px;'>"
+                f"Hasil Prediksi Tingkat Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True
+            )
 
     manual_prediction_ui()
     text_prediction_ui()
@@ -1208,7 +1259,14 @@ else:
     # === FOOTER ===
     st.markdown("<br><hr>", unsafe_allow_html=True)
     st.markdown("""
-    <div style='margin-top: 20px; background-color: black; padding: 10px 20px; border-radius: 10px; text-align: center; color: white;'>
+    <div style='
+        margin-top: 20px;
+        background-color: black;
+        padding: 10px 20px;
+        border-radius: 10px;
+        text-align: center;
+        color: white;
+    '>
         <p style='margin: 0; font-size: 30px; font-weight: bold; line-height: 1.2;'>Smart Fire Prediction HSEL Model</p>
         <p style='margin: 0; font-size: 13px; line-height: 1.2;'>Dikembangkan oleh Mahasiswa Universitas Putera Indonesia YPTK Padang Tahun 2026</p>
     </div>
