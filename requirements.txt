@@ -10,6 +10,6 @@ Sastrawi
 shap
 matplotlib
 requests
-ultralytics
-opencv-python-headless
 Pillow
+opencv-python-headless
+ultralytics
