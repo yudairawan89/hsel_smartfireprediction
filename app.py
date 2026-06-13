@@ -93,15 +93,32 @@ def get_image_base64(path):
         return ""
 
 def get_multimodal_decision(visual_label, iot_label):
-    if visual_label == 1 and "Very High" in iot_label: return "Kebakaran Telah Terjadi", "Indikasi sangat kuat bahwa kebakaran telah terjadi berdasarkan konfirmasi visual dan sensor.", "#B22222", "🔥"
-    elif visual_label == 1 and "High" in iot_label: return "Kebakaran Sangat Mungkin", "Gambaran visual api dan kondisi lingkungan berisiko tinggi memperkuat dugaan kebakaran aktif.", "#DC143C", "🚨"
-    elif visual_label == 1 and "Moderate" in iot_label: return "Kemungkinan Kebakaran", "Visual mendeteksi api, namun kondisi sensor menunjukkan tingkat risiko sedang.", "#FF8C00", "⚠️"
-    elif visual_label == 1 and "Low" in iot_label: return "Terdeteksi Api Isolated", "Visual menunjukkan api meskipun kondisi lingkungan kurang mendukung penyebaran. Kemungkinan aktivitas manusia.", "#FFA500", "🟠"
-    elif visual_label == 0 and "Very High" in iot_label: return "Risiko Kebakaran Sangat Tinggi", "Belum ada deteksi visual api, namun lingkungan sangat rentan kebakaran. Waspada dini diperlukan.", "#8B0000", "🌡️"
-    elif visual_label == 0 and "High" in iot_label: return "Potensi Kebakaran Tinggi", "Belum ada api terdeteksi, tetapi kondisi sekitar menunjukkan risiko tinggi kebakaran.", "#FF6347", "🔥"
-    elif visual_label == 0 and "Moderate" in iot_label: return "Kondisi Rentan Kebakaran", "Lingkungan menunjukkan risiko sedang terhadap kebakaran. Pemantauan disarankan.", "#FFD700", "⚠️"
-    elif visual_label == 0 and "Low" in iot_label: return "Tidak Terindikasi Kebakaran", "Tidak ada api terdeteksi dan kondisi lingkungan tergolong aman.", "#228B22", "✅"
-    else: return "Status Tidak Diketahui", "Data tidak mencukupi untuk menarik kesimpulan.", "#808080", "❓"
+    if visual_label == 1 and "Very High" in iot_label: 
+        tl = "<ul style='margin:0; padding-left:20px;'><li><b>Darurat:</b> Bunyikan alarm darurat dan lakukan evakuasi.</li><li><b>Operasional:</b> Kerahkan seluruh armada Damkar/BPBD ke lokasi.</li><li><b>Koordinasi:</b> Laporkan ke komando pusat provinsi.</li></ul>"
+        return "Kebakaran Telah Terjadi", "Indikasi sangat kuat bahwa kebakaran telah terjadi berdasarkan konfirmasi visual dan sensor.", "#B22222", "🔥", tl
+    elif visual_label == 1 and "High" in iot_label: 
+        tl = "<ul style='margin:0; padding-left:20px;'><li><b>Operasional:</b> Kerahkan regu pemadam terdekat ke titik koordinat.</li><li><b>Isolasi:</b> Lakukan penyekatan area cegah api merembet.</li><li><b>Peringatan:</b> Berikan peringatan waspada kepada warga sekitar.</li></ul>"
+        return "Kebakaran Sangat Mungkin", "Gambaran visual api dan kondisi lingkungan berisiko tinggi memperkuat dugaan kebakaran aktif.", "#DC143C", "🚨", tl
+    elif visual_label == 1 and "Moderate" in iot_label: 
+        tl = "<ul style='margin:0; padding-left:20px;'><li><b>Verifikasi:</b> Kirim tim cepat untuk memverifikasi skala api.</li><li><b>Tindakan:</b> Lakukan pemadaman dini sebelum api membesar.</li><li><b>Pantau:</b> Cek arah angin untuk prediksi perembetan.</li></ul>"
+        return "Kemungkinan Kebakaran", "Visual mendeteksi api, namun kondisi sensor menunjukkan tingkat risiko sedang.", "#FF8C00", "⚠️", tl
+    elif visual_label == 1 and "Low" in iot_label: 
+        tl = "<ul style='margin:0; padding-left:20px;'><li><b>Inspeksi:</b> Pengecekan kemungkinan pembakaran sampah/terkendali.</li><li><b>Hukuman:</b> Tegur pelaku jika aktivitas ilegal.</li><li><b>Pemadaman:</b> Padamkan api agar tidak menimbulkan asap.</li></ul>"
+        return "Terdeteksi Api Isolated", "Visual menunjukkan api meskipun kondisi lingkungan kurang mendukung penyebaran. Kemungkinan aktivitas manusia.", "#FFA500", "🟠", tl
+    elif visual_label == 0 and "Very High" in iot_label: 
+        tl = "<ul style='margin:0; padding-left:20px;'><li><b>Waspada:</b> Tetapkan status siaga darurat tingkat lokal.</li><li><b>Patroli:</b> Sisir area rawan secara fisik dan drone.</li><li><b>Preventif:</b> Larang keras seluruh aktivitas api di area rawan.</li></ul>"
+        return "Risiko Kebakaran Sangat Tinggi", "Belum ada deteksi visual api, namun lingkungan sangat rentan kebakaran. Waspada dini diperlukan.", "#8B0000", "🌡️", tl
+    elif visual_label == 0 and "High" in iot_label: 
+        tl = "<ul style='margin:0; padding-left:20px;'><li><b>Siaga:</b> Siagakan armada pemadam di pos terdekat.</li><li><b>Pemantauan:</b> Tingkatkan frekuensi pantauan dashboard.</li><li><b>Edukasi:</b> Siarkan peringatan ke warga.</li></ul>"
+        return "Potensi Kebakaran Tinggi", "Belum ada api terdeteksi, tetapi kondisi sekitar menunjukkan risiko tinggi kebakaran.", "#FF6347", "🔥", tl
+    elif visual_label == 0 and "Moderate" in iot_label: 
+        tl = "<ul style='margin:0; padding-left:20px;'><li><b>Rutin:</b> Lakukan patroli berkala sesuai jadwal standar.</li><li><b>Pengawasan:</b> Awasi indikasi pembakaran perkebunan.</li><li><b>Analisis:</b> Pantau pergerakan kelembapan harian.</li></ul>"
+        return "Kondisi Rentan Kebakaran", "Lingkungan menunjukkan risiko sedang terhadap kebakaran. Pemantauan disarankan.", "#FFD700", "⚠️", tl
+    elif visual_label == 0 and "Low" in iot_label: 
+        tl = "<ul style='margin:0; padding-left:20px;'><li><b>Rutin:</b> Lanjutkan pemantauan reguler melalui dashboard.</li><li><b>Dokumentasi:</b> Catat dan laporkan kondisi aman.</li><li><b>Teknis:</b> Pelihara fungsi alat IoT secara berkala.</li></ul>"
+        return "Tidak Terindikasi Kebakaran", "Tidak ada api terdeteksi dan kondisi lingkungan tergolong aman.", "#228B22", "✅", tl
+    else: 
+        return "Status Tidak Diketahui", "Data tidak mencukupi untuk menarik kesimpulan.", "#808080", "❓", "Menunggu Data Lengkap"
 
 # === LOAD MODEL, SCALER, SASTRAWI, YOLO ===
 @st.cache_resource
@@ -204,7 +221,6 @@ if current_page == "multimodal":
     if yolo_model is None:
         st.error("🚨 Model YOLO (`best.pt`) tidak ditemukan. Pastikan Anda telah mengunggah file `best.pt` ke direktori aplikasi!")
     else:
-        # Memberikan rasio frame kanan sedikit lebih lebar agar Map & IoT Device lebih besar
         col_vis, col_sensor = st.columns([1.15, 1.25], gap="large")
         
         # === KOLOM VISUAL (KIRI) ===
@@ -240,7 +256,6 @@ if current_page == "multimodal":
             else:
                 st.session_state.yolo_fire_detected = None
                 try:
-                    # Menggunakan gambar hutan.png sesuai permintaan
                     st.image(Image.open("hutan.png"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
                 except Exception:
                     try: 
@@ -282,7 +297,7 @@ if current_page == "multimodal":
                         
                     font, bg = risk_styles.get(hsel_risk, ("black", "white"))
                     
-                    # === 1. TOP SECTION: MAP & IOT DEVICE (DI PERBESAR) ===
+                    # === 1. TOP SECTION: MAP & IOT DEVICE ===
                     st.markdown("<h4 style='color:#2c3e50; border-bottom:2px solid #e0e0e0; padding-bottom:10px; margin-top:0;'>🗺️ Peta Konteks & Sensor</h4>", unsafe_allow_html=True)
                     
                     cm1, cm2 = st.columns([1.5, 1], gap="medium")
@@ -305,16 +320,14 @@ if current_page == "multimodal":
                         
                         popup_html = f"<b>Pekanbaru</b><br>HSEL: {hsel_risk}"
                         folium.Marker(location=[0.5333, 101.4500], popup=popup_html, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m_mini)
-                        
-                        # Lebar peta dibuat statis dan proporsional untuk mengisi kolom kiri (cm1)
                         folium_static(m_mini, width=360, height=260)
                         
                     with cm2:
                         st.markdown("<div style='font-size:13px; font-weight:bold; color:#555; margin-bottom:5px;'>Alat Node IoT</div>", unsafe_allow_html=True)
                         try:
-                            st.image(Image.open("forestiot4.jpg"), use_container_width=True)
+                            st.image(Image.open("alat_iot.png"), use_container_width=True)
                         except Exception:
-                            st.info("Gambar forestiot4.jpg tidak ditemukan.")
+                            st.info("Gambar alat_iot.png tidak ditemukan.")
                     
                     st.markdown("<hr style='margin:25px 0 15px 0; border: 1px dashed #e0e0e0;'>", unsafe_allow_html=True)
                     
@@ -348,7 +361,7 @@ if current_page == "multimodal":
                         st.info("ℹ️ Menunggu konfirmasi visual (Silakan unggah atau ambil gambar di panel kiri).")
                     else:
                         visual_val = 1 if fire_detected else 0
-                        title, desc, color, icon = get_multimodal_decision(visual_val, hsel_risk)
+                        title, desc, color, icon, tindak_lanjut = get_multimodal_decision(visual_val, hsel_risk)
                         font_col = "white" if color not in ["#FFD700", "#FF8C00", "#FFA500"] else "black"
                         
                         st.markdown(f"""
@@ -356,25 +369,31 @@ if current_page == "multimodal":
                             <h3 style='color: {font_col}; margin-top: 0; font-size:20px;'>{icon} {title}</h3>
                             <p style='font-size: 14px; margin-bottom: 0; line-height:1.4;'>{desc}</p>
                         </div>
-                        """, unsafe_allow_html=True)
-                        
-                    # === 4. PRODUCED BY ===
-                    logo_upi_b64 = get_image_base64("logo upi yptk.png")
-                    logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 50px; height: auto;" alt="Logo">' if logo_upi_b64 else ''
-                    
-                    st.markdown(f"""
-                    <div style="background: #fdfdfd; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-top:30px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 12px;">
-                            {logo_upi_tag}
-                            <div style="text-align: left; line-height: 1.4;">
-                                <b style="font-size: 10px; color: #718096; text-transform: uppercase; letter-spacing: 0.8px;">Produced By</b><br>
-                                <span style="font-size: 12px; font-weight: bold; color: #2d3748;">Multimodal HSEL & Hybrid YOLO</span><br>
-                                <span style="font-size: 10px; font-style: italic; color: #4a5568;">Mahasiswa Doctoral TI UPI YPTK Padang</span>
+                        <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 5px solid {color}; padding: 15px; border-radius: 8px; margin-top: 15px;'>
+                            <b style='color: #2c3e50; font-size: 14px;'>📋 Rekomendasi Tindak Lanjut:</b>
+                            <div style='font-size: 13px; color: #4a5568; margin-top: 8px; line-height: 1.5;'>
+                                {tindak_lanjut}
                             </div>
                         </div>
-                        <div style="border-top: 1px dashed #cbd5e0; padding-top: 10px; text-align: center;">
-                            <div style="font-size: 11px; color: #3182ce; font-weight: 600; margin-bottom: 4px;">Processed: <span style="color: #2b6cb0; font-weight: normal;">{tanggal_valid}</span></div>
-                            <div style="font-size: 10px; color: #718096;">Data Source: Sensor IoT Lokal & Vision AI</div>
+                        """, unsafe_allow_html=True)
+                        
+                    # === 4. PRODUCED BY (DIPERBESAR & LEBIH PROPORIONAL) ===
+                    logo_upi_b64 = get_image_base64("logo upi yptk.png")
+                    logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 80px; height: auto;" alt="Logo">' if logo_upi_b64 else ''
+                    
+                    st.markdown(f"""
+                    <div style="background: #fdfdfd; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-top:30px; box-shadow: 0 4px 8px rgba(0,0,0,0.05);">
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 15px;">
+                            {logo_upi_tag}
+                            <div style="text-align: left; line-height: 1.5;">
+                                <b style="font-size: 12px; color: #718096; text-transform: uppercase; letter-spacing: 1px;">Produced By</b><br>
+                                <span style="font-size: 16px; font-weight: bold; color: #2d3748;">Multimodal HSEL & Hybrid YOLO</span><br>
+                                <span style="font-size: 13px; font-style: italic; color: #4a5568;">Mahasiswa Doctoral TI UPI YPTK Padang</span>
+                            </div>
+                        </div>
+                        <div style="border-top: 1px dashed #cbd5e0; padding-top: 12px; text-align: center;">
+                            <div style="font-size: 13px; color: #3182ce; font-weight: 600; margin-bottom: 5px;">Processed: <span style="color: #2b6cb0; font-weight: normal;">{tanggal_valid}</span></div>
+                            <div style="font-size: 12px; color: #718096;">Data Source: Sensor IoT Lokal & Vision AI</div>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -394,10 +413,8 @@ else:
     # === HEADER ===
     col1, col2 = st.columns([1, 9])
     with col1:
-        try:
-            st.image("logo.png", width=170)
-        except:
-            pass
+        try: st.image("logo.png", width=170)
+        except: pass
     with col2:
         st.markdown("""
             <div style='margin-left: 20px;'>
@@ -437,7 +454,6 @@ else:
             return
             
         df, clean_df, scaled_all, fitur = res
-        
         last_row = df.iloc[-1]
         last_num = clean_df.iloc[-1]
         waktu = pd.to_datetime(last_row['Waktu'], errors='coerce')
@@ -479,7 +495,6 @@ else:
 
         with st.expander("📊 Analisis Keputusan Model (XAI)"):
             st.markdown("<span style='font-size:14px; color:gray;'>Grafik di bawah menunjukkan seberapa besar setiap parameter sensor berkontribusi terhadap prediksi saat ini.</span>", unsafe_allow_html=True)
-
             try:
                 data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
                 background_data = pd.DataFrame(shap.sample(scaled_all, 50), columns=fitur)
@@ -516,7 +531,6 @@ else:
                 kontribusi = sorted(kontribusi, key=lambda x: x["pct"], reverse=True)
 
                 st.markdown("<h4 style='margin-top: 25px;'>Analisis Detail Keputusan Model (XAI)</h4>", unsafe_allow_html=True)
-
                 if risk_label == "Low / Rendah": st.success("Kondisi lingkungan saat ini terpantau **sangat aman dan stabil**. Berdasarkan analisis *Explainable AI* (SHAP), berikut adalah dominasi faktor-faktor alam yang sukses meredam potensi kebakaran:")
                 elif risk_label == "Moderate / Sedang": st.info("Kondisi lingkungan saat ini terpantau **cukup stabil namun memerlukan pemantauan berkala**. Berikut adalah rincian faktor yang memengaruhi keseimbangan risiko saat ini:")
                 elif risk_label == "High / Tinggi": st.warning("Kondisi lingkungan saat ini terpantau **kritis**. Berdasarkan analisis *Explainable AI* (SHAP), terdapat ancaman bahaya yang dipicu oleh memburuknya faktor-faktor berikut:")
@@ -530,7 +544,6 @@ else:
                     arah = factor['shap_val']
 
                     st.markdown(f"**{icon} {factor['fitur'].title()} ({persen:.1f}%)**")
-
                     if persen < 5.0:
                         if arah > 0: st.write("- Memberikan dorongan minor terhadap potensi risiko. Pengaruhnya saat ini tertutupi oleh faktor dominan lainnya.")
                         else: st.write("- Memiliki efek peredaman yang sangat kecil terhadap prediksi saat ini. Kondisinya belum cukup signifikan untuk memengaruhi status lingkungan secara keseluruhan.")
@@ -1106,27 +1119,30 @@ else:
             st.number_input("Kelembaban Tanah (%)", key="man_tanah")
 
         btn_pred, btn_reset, _ = st.columns([1, 1, 8])
-        with btn_pred: st.button("🔍 Prediksi Manual", on_click=do_predict_manual)
-        with btn_reset: st.button("🧼 Reset Manual", on_click=reset_manual)
+        if btn_pred.button("🔍 Prediksi Manual", use_container_width=True):
+            do_predict_manual()
+            st.rerun()
+        if btn_reset.button("🧼 Reset Manual", use_container_width=True):
+            reset_manual()
+            st.rerun()
 
         if st.session_state.manual_result:
             hasil = st.session_state.manual_result
             font, bg = risk_styles.get(hasil, ("black", "white"))
             st.markdown(f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top:15px;'>Prediksi Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True)
 
-    if "txt_input" not in st.session_state: st.session_state.txt_input = ""
     if "txt_result" not in st.session_state: st.session_state.txt_result = None
     if "txt_preprocessing" not in st.session_state: st.session_state.txt_preprocessing = {}
 
     def reset_text():
-        st.session_state.txt_input, st.session_state.txt_result, st.session_state.txt_preprocessing = "", None, {}
+        st.session_state.txt_result, st.session_state.txt_preprocessing = None, {}
 
-    def do_predict_text():
-        if st.session_state.txt_input.strip() == "": st.warning("Harap masukkan deskripsi teks.")
-        elif vectorizer is None or model_text is None: st.error("Model teks gagal dimuat.")
+    def do_predict_text(input_text):
+        if input_text.strip() == "": st.warning("Harap masukkan deskripsi teks.")
+        elif vectorizer is None or model_text is None: st.error("Model teks gagal dimuat. Pastikan file 'tfidf_vectorizer.joblib' dan 'stacking_text_model.joblib' tersedia di direktori.")
         else:
             try:
-                raw_text = st.session_state.txt_input
+                raw_text = input_text
                 text_lower = raw_text.lower()
                 text_clean = re.sub(r'[^a-zA-Z\s]', '', text_lower)
                 text_stopword = stopword_remover.remove(text_clean)
@@ -1156,11 +1172,19 @@ else:
     @st.fragment
     def text_prediction_ui():
         st.markdown("<div class='section-title' style='margin-top: 20px;'>Pengujian Menggunakan Data Teks</div>", unsafe_allow_html=True)
-        st.text_area("Masukkan deskripsi lingkungan:", key="txt_input", height=120)
-
+        
+        current_text = st.text_area("Masukkan deskripsi lingkungan (misal: Cuaca hari ini sangat panas dan kering tanpa hujan):", value=st.session_state.get("txt_input_val", ""), height=120)
+        
         btn_pred_text, btn_reset_text, _ = st.columns([1, 1, 8])
-        with btn_pred_text: st.button("🔍 Prediksi Teks", on_click=do_predict_text)
-        with btn_reset_text: st.button("🧼 Reset Teks", on_click=reset_text)
+        if btn_pred_text.button("🔍 Prediksi Teks", use_container_width=True):
+            st.session_state.txt_input_val = current_text
+            do_predict_text(current_text)
+            st.rerun()
+            
+        if btn_reset_text.button("🧼 Reset Teks", use_container_width=True):
+            st.session_state.txt_input_val = ""
+            reset_text()
+            st.rerun()
             
         if st.session_state.txt_result:
             with st.expander("🛠️ Klik untuk melihat hasil setiap tahapan Pre-processing & Keputusan Model", expanded=False):
@@ -1174,9 +1198,9 @@ else:
                     st.markdown("**6. Ekstraksi Fitur (TF-IDF)**")
                     df_tfidf_display = steps.get("tfidf_df")
                     if df_tfidf_display is not None and not df_tfidf_display.empty: st.dataframe(df_tfidf_display, use_container_width=True)
-                    else: st.warning("Kata-kata pada input ini tidak dikenali.")
+                    else: st.warning("Kata-kata pada input ini tidak dikenali dalam model vocabulary.")
 
-                    st.markdown("**7. Probabilitas HSEL**")
+                    st.markdown("**7. Probabilitas Model HSEL**")
                     prob_dict = steps.get("prob_dict")
                     if prob_dict:
                         for label, prob in prob_dict.items():
@@ -1185,7 +1209,7 @@ else:
 
             hasil = st.session_state.txt_result
             font, bg = risk_styles.get(hasil, ("black", "white"))
-            st.markdown(f"<p style='color:{font}; background-color:{bg}; padding:10px; border-radius:5px; margin-top: 15px; font-size: 16px;'>Hasil Prediksi Tingkat Risiko Kebakaran: <b>{hasil}</b></p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color:{font}; background-color:{bg}; padding:15px; border-radius:8px; margin-top: 15px; font-size: 16px; font-weight:bold; text-align:center;'>Hasil Prediksi Tingkat Risiko Kebakaran: <span style='text-decoration:underline;'>{hasil}</span></p>", unsafe_allow_html=True)
 
     manual_prediction_ui()
     text_prediction_ui()
