@@ -95,11 +95,12 @@ def convert_to_label(pred):
         3: "Very High / Sangat Tinggi"
     }.get(pred, "Unknown")
 
+# Dikembalikan ke warna original
 risk_styles = {
-    "Low / Rendah": ("white", "#228B22"),
-    "Moderate / Sedang": ("black", "#FFD700"),
-    "High / Tinggi": ("white", "#FF6347"),
-    "Very High / Sangat Tinggi": ("white", "#8B0000")
+    "Low / Rendah": ("white", "blue"),
+    "Moderate / Sedang": ("white", "green"),
+    "High / Tinggi": ("black", "yellow"),
+    "Very High / Sangat Tinggi": ("white", "red")
 }
 
 def get_image_base64(path):
@@ -117,7 +118,7 @@ def get_multimodal_decision(visual_label, iot_label):
     elif visual_label == 1 and "Moderate" in iot_label:
         return "Kemungkinan Kebakaran", "Visual mendeteksi api, namun kondisi sensor menunjukkan tingkat risiko sedang.", "#FF8C00", "⚠️"
     elif visual_label == 1 and "Low" in iot_label:
-        return "Terdeteksi Api Isolated", "Visual menunjukkan api meskipun kondisi lingkungan kurang mendukung penyebaran. Kemungkinan aktivitas manusia (terkendali).", "#FFA500", "🟠"
+        return "Terdeteksi Api Isolated", "Visual menunjukkan api meskipun kondisi lingkungan kurang mendukung penyebaran. Kemungkinan aktivitas manusia.", "#FFA500", "🟠"
     elif visual_label == 0 and "Very High" in iot_label:
         return "Risiko Kebakaran Sangat Tinggi", "Belum ada deteksi visual api, namun lingkungan sangat rentan kebakaran. Waspada dini diperlukan.", "#8B0000", "🌡️"
     elif visual_label == 0 and "High" in iot_label:
@@ -224,7 +225,7 @@ if current_page == "multimodal":
         </div>
         <div>
             <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 1px; color: #ffffff;">COMMAND CENTER MULTIMODAL</h1>
-            <p style="margin: 5px 0 0 0; font-size: 15px; color: #b2bec3;">Sistem Peringatan Dini Cerdas: Integrasi Kecerdasan Visual YOLO11 dan Sensor Lingkungan HSEL Terpadu</p>
+            <p style="margin: 5px 0 0 0; font-size: 15px; color: #b2bec3;">Sistem Peringatan Dini Cerdas: Integrasi Kecerdasan Visual Hybrid YOLO-ViT+GRU dan Sensor Lingkungan HSEL Terpadu</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -237,7 +238,7 @@ if current_page == "multimodal":
         # === KOLOM VISUAL (KIRI) ===
         with col_vis:
             st.markdown("<div class='stCard'>", unsafe_allow_html=True)
-            st.markdown("<h4 style='color:#2c3e50; border-bottom:2px solid #e0e0e0; padding-bottom:10px; margin-top:0;'>👁️ AI Visual (YOLO11)</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='color:#2c3e50; border-bottom:2px solid #e0e0e0; padding-bottom:10px; margin-top:0;'>👁️ AI Visual (Hybrid YOLO-ViT+GRU)</h4>", unsafe_allow_html=True)
             
             # Pengganti Tabs: Menggunakan Radio Button agar kamera mati saat pindah menu
             input_method = st.radio("Pilih Sumber Pengamatan:", ["📁 Unggah File Citra", "🎥 Kamera Langsung / USB"], horizontal=True)
@@ -261,7 +262,7 @@ if current_page == "multimodal":
                     st.session_state.yolo_fire_detected = len(detections) > 0
                     
                     res_rgb = cv2.cvtColor(res_plotted, cv2.COLOR_BGR2RGB)
-                    st.image(res_rgb, caption="Hasil Analisis Visi Komputer YOLO11", use_container_width=True)
+                    st.image(res_rgb, caption="Hasil Analisis Visi Komputer Hybrid YOLO-ViT+GRU", use_container_width=True)
                     
                     if st.session_state.yolo_fire_detected:
                         st.error(f"🔥 Sistem mendeteksi keberadaan {len(detections)} titik api aktif!")
@@ -269,6 +270,14 @@ if current_page == "multimodal":
                         st.success("✅ Tidak terdeteksi adanya anomali api pada citra ini.")
             else:
                 st.session_state.yolo_fire_detected = None
+                # Menampilkan gambar perangkat IoT sebagai placeholder ketika kosong
+                try:
+                    st.image(Image.open("alat_iot.png"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
+                except:
+                    try: 
+                        st.image(Image.open("forestiot4.jpg"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
+                    except:
+                        st.info("Menunggu input visual...")
                 
             st.markdown("</div></div>", unsafe_allow_html=True)
 
@@ -298,6 +307,28 @@ if current_page == "multimodal":
                     m4, m5, _ = st.columns([1,1,1])
                     m4.metric("💨 Kec. Angin", f"{float(last_num[fitur[3]]):.1f} m/s")
                     m5.metric("🌱 Kel. Tanah", f"{float(last_num[fitur[4]]):.1f} %")
+                    
+                    # Narasi Prediksi seperti Dashboard Utama
+                    waktu = pd.to_datetime(last_row['Waktu'], errors='coerce')
+                    if pd.isna(waktu):
+                        try: waktu = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
+                        except Exception: waktu = None
+
+                    if isinstance(waktu, pd.Timestamp):
+                        hari = convert_day_to_indonesian(waktu.strftime('%A'))
+                        bulan = convert_month_to_indonesian(waktu.strftime('%B'))
+                        tanggal = waktu.strftime(f'%d {bulan} %Y')
+                    else:
+                        hari, tanggal = "-", str(last_row['Waktu'])
+                        
+                    font, bg = risk_styles.get(hsel_risk, ("black", "white"))
+                    
+                    st.markdown(
+                        f"<div style='background-color:{bg}; color:{font}; padding:12px; border-radius:8px; font-weight:bold; margin-top:15px; font-size:14px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>"
+                        f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran:<br>"
+                        f"<span style='text-decoration: underline; font-size: 20px;'>{hsel_risk}</span></div>",
+                        unsafe_allow_html=True
+                    )
                     
                     st.markdown("<hr style='margin:15px 0;'>", unsafe_allow_html=True)
                     
@@ -356,7 +387,6 @@ if current_page == "multimodal":
             with col_alat:
                 st.markdown("<b style='color:#333; font-size:14px;'>⚙️ Node Sensor IoT</b>", unsafe_allow_html=True)
                 try:
-                    # Ganti "alat_iot.png" dengan nama file gambar IoT Anda
                     st.image(Image.open("alat_iot.png"), use_container_width=True)
                 except Exception:
                     try: 
@@ -369,17 +399,17 @@ if current_page == "multimodal":
                 with st.expander("ℹ️ Panduan Risiko & Tindakan", expanded=False):
                     st.markdown("""
                     <div style="font-size:11px; line-height:1.4;">
-                    <b style="color:#228B22;">Low (Rendah):</b> Resiko rendah. Api mudah dikendalikan.<br><br>
-                    <b style="color:#FFD700;">Moderate (Sedang):</b> Resiko sedang. Pantauan ditingkatkan.<br><br>
-                    <b style="color:#FF6347;">High (Tinggi):</b> Resiko tinggi. Api sulit dikendalikan. Siapkan tim.<br><br>
-                    <b style="color:#8B0000;">Very High (Sangat Tinggi):</b> Darurat! Api sangat sulit dikendalikan.
+                    <b style="color:blue;">Low (Rendah):</b> Resiko rendah. Api mudah dikendalikan.<br><br>
+                    <b style="color:green;">Moderate (Sedang):</b> Resiko sedang. Pantauan ditingkatkan.<br><br>
+                    <b style="color:orange;">High (Tinggi):</b> Resiko tinggi. Api sulit dikendalikan. Siapkan tim.<br><br>
+                    <b style="color:red;">Very High (Sangat Tinggi):</b> Darurat! Api sangat sulit dikendalikan.
                     </div>
                     """, unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
 
 # -------------------------------------------------------------------------
-# HALAMAN 1 (DEFAULT): DASHBOARD UTAMA (TIDAK BERUBAH DARI PERMINTAAN SEBELUMNYA)
+# HALAMAN 1 (DEFAULT): DASHBOARD UTAMA (DIKEMBALIKAN KE VERSI ORIGINAL)
 # -------------------------------------------------------------------------
 else:
     # === HEADER ===
@@ -454,27 +484,25 @@ else:
             "Value": [f"{float(last_num[col]):.1f}" for col in fitur]
         })
 
-        st.markdown("<div class='stCard' style='padding: 15px;'>", unsafe_allow_html=True)
-        st.markdown("<h5 style='text-align: center; margin-top:0;'>Data Sensor Realtime</h5>", unsafe_allow_html=True)
-        sensor_html = "<table style='width: 100%; border-collapse: collapse; font-size:14px;'>"
+        st.markdown("<h5 style='text-align: center;'>Data Sensor Realtime</h5>", unsafe_allow_html=True)
+        sensor_html = "<table style='width: 100%; border-collapse: collapse;'>"
         sensor_html += "<thead><tr><th>Variabel</th><th>Value</th></tr></thead><tbody>"
         for i in range(len(sensor_df)):
             var = sensor_df.iloc[i, 0]
             val = sensor_df.iloc[i, 1]
-            sensor_html += f"<tr><td style='padding:6px; text-align:left;'>{var}</td><td style='padding:6px;'>{val}</td></tr>"
+            sensor_html += f"<tr><td style='padding:6px;'>{var}</td><td style='padding:6px;'>{val}</td></tr>"
         sensor_html += "</tbody></table>"
         st.markdown(sensor_html, unsafe_allow_html=True)
 
         st.markdown(
-            f"<div style='background-color:{bg}; color:{font}; padding:15px; border-radius:8px; font-weight:bold; text-align:center; margin-top:15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>"
-            f"<span style='font-size:13px; font-weight:normal;'>{hari}, {tanggal}</span><br>"
-            f"Tingkat Resiko Kebakaran:<br>"
-            f"<span style='text-decoration: underline; font-size: 20px;'>{risk_label}</span></div>",
+            f"<p style='background-color:{bg}; color:{font}; padding:10px; border-radius:8px; font-weight:bold; margin-top: 15px;'>"
+            f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran: "
+            f"<span style='text-decoration: underline; font-size: 22px;'>{risk_label}</span></p>",
             unsafe_allow_html=True
         )
 
         with st.expander("📊 Analisis Keputusan Model (XAI)"):
-            st.markdown("<span style='font-size:13px; color:gray;'>Grafik di bawah menunjukkan seberapa besar setiap parameter sensor berkontribusi terhadap prediksi.</span>", unsafe_allow_html=True)
+            st.markdown("<span style='font-size:14px; color:gray;'>Grafik di bawah menunjukkan seberapa besar setiap parameter sensor berkontribusi terhadap prediksi saat ini.</span>", unsafe_allow_html=True)
 
             try:
                 data_realtime_scaled = pd.DataFrame(scaled_all[-1:], columns=fitur)
@@ -517,7 +545,17 @@ else:
                     })
                 kontribusi = sorted(kontribusi, key=lambda x: x["pct"], reverse=True)
 
-                st.markdown("<h5 style='margin-top: 20px;'>Detail Keputusan</h5>", unsafe_allow_html=True)
+                st.markdown("<h4 style='margin-top: 25px;'>Analisis Detail Keputusan Model (XAI)</h4>", unsafe_allow_html=True)
+
+                if risk_label == "Low / Rendah":
+                    st.success("Kondisi lingkungan saat ini terpantau **sangat aman dan stabil**. Berdasarkan analisis *Explainable AI* (SHAP), berikut adalah dominasi faktor-faktor alam yang sukses meredam potensi kebakaran:")
+                elif risk_label == "Moderate / Sedang":
+                    st.info("Kondisi lingkungan saat ini terpantau **cukup stabil namun memerlukan pemantauan berkala**. Berikut adalah rincian faktor yang memengaruhi keseimbangan risiko saat ini:")
+                elif risk_label == "High / Tinggi":
+                    st.warning("Kondisi lingkungan saat ini terpantau **kritis**. Berdasarkan analisis *Explainable AI* (SHAP), terdapat ancaman bahaya yang dipicu oleh memburuknya faktor-faktor berikut:")
+                elif risk_label == "Very High / Sangat Tinggi":
+                    st.error("Kondisi lingkungan saat ini berada pada fase **SANGAT EKSTREM**. Faktor-faktor alam berikut secara masif mendorong eskalasi kebakaran lahan ke tingkat bahaya tertinggi:")
+
                 icons = ["🔴", "🟠", "🟡", "🟢", "⚪"]
 
                 for i, factor in enumerate(kontribusi):
@@ -526,20 +564,43 @@ else:
                     persen = factor['pct']
                     arah = factor['shap_val']
 
-                    st.markdown(f"<span style='font-size:14px;'>**{icon} {factor['fitur'].title()} ({persen:.1f}%)**</span>", unsafe_allow_html=True)
+                    st.markdown(f"**{icon} {factor['fitur'].title()} ({persen:.1f}%)**")
+
                     if persen < 5.0:
-                        desc_xai = "Dorongan minor terhadap potensi risiko saat ini."
+                        if arah > 0: st.write("- Memberikan dorongan minor terhadap potensi risiko. Pengaruhnya saat ini tertutupi oleh faktor dominan lainnya.")
+                        else: st.write("- Memiliki efek peredaman yang sangat kecil terhadap prediksi saat ini. Kondisinya belum cukup signifikan untuk memengaruhi status lingkungan secara keseluruhan.")
                     else:
-                        if "tanah" in nama_fitur: desc_xai = "Meningkatkan Risiko (Kering)" if arah > 0 else "Meredam Risiko (Lembab)"
-                        elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur: desc_xai = "Udara Kering" if arah > 0 else "Menjaga Kebasahan"
-                        elif "angin" in nama_fitur or "ff" in nama_fitur: desc_xai = "Mempercepat Eskalasi" if arah > 0 else "Kondisi Stabil"
-                        elif "suhu" in nama_fitur or "temperatur" in nama_fitur or "tavg" in nama_fitur: desc_xai = "Memicu Penguapan Panas" if arah > 0 else "Stabilitas Termal Terjaga"
-                        elif "hujan" in nama_fitur or "rr" in nama_fitur: desc_xai = "Pendingin Alami Hilang" if arah > 0 else "Faktor Pendingin Aktif"
-                        else: desc_xai = "Meningkatkan Potensi" if arah > 0 else "Menstabilkan Potensi"
-                    st.markdown(f"<p style='font-size:12px; margin-top:-5px; padding-left:25px;'>{desc_xai}</p>", unsafe_allow_html=True)
+                        if "tanah" in nama_fitur:
+                            if arah > 0: st.write("- **Meningkatkan Risiko:** Merupakan faktor pendorong utama. Kelembaban tanah yang rendah menunjukkan kondisi lahan yang teramat kering.")
+                            else: st.write("- **Meredam Risiko:** Kelembaban tanah terdeteksi cukup tinggi (basah/lembab). Bertindak sebagai tameng alami.")
+                        elif "udara" in nama_fitur or "rh" in nama_fitur or "kelembapan" in nama_fitur:
+                            if arah > 0: st.write("- **Meningkatkan Risiko:** Udara yang kering mempercepat proses pengeringan bahan bakar alami.")
+                            else: st.write("- **Meredam Risiko:** Tingkat kelembapan udara yang tinggi membantu menjaga kebasahan partikel.")
+                        elif "angin" in nama_fitur or "ff" in nama_fitur:
+                            if arah > 0: st.write("- **Mempercepat Eskalasi:** Kecepatan angin saat ini berisiko memperluas area kebakaran dengan sangat cepat.")
+                            else: st.write("- **Kondisi Stabil:** Pergerakan angin yang relatif lambat dan tenang tidak memberikan ancaman berarti.")
+                        elif "suhu" in nama_fitur or "temperatur" in nama_fitur or "tavg" in nama_fitur:
+                            if arah > 0: st.write("- **Meningkatkan Risiko:** Suhu lingkungan yang sangat panas memicu penguapan air dari vegetasi.")
+                            else: st.write("- **Meredam Risiko:** Suhu udara yang tergolong sejuk atau normal menjaga stabilitas termal lingkungan.")
+                        elif "hujan" in nama_fitur or "rr" in nama_fitur:
+                            if arah > 0: st.write("- **Meningkatkan Risiko:** Ketiadaan curah hujan menghilangkan faktor pendingin alami utama.")
+                            else: st.write("- **Meredam Risiko:** Curah hujan yang turun merupakan faktor pendingin krusial.")
+                        else:
+                            if arah > 0: st.write("- Secara kalkulasi sistem berkontribusi dalam meningkatkan potensi risiko kebakaran.")
+                            else: st.write("- Secara kalkulasi sistem berkontribusi menstabilkan potensi risiko kebakaran.")
+
             except Exception as e:
-                st.error(f"Visualisasi XAI belum siap.")
-        st.markdown("</div>", unsafe_allow_html=True)
+                st.error(f"Visualisasi XAI belum dapat diproses: {e}")
+
+        with st.expander("Tindak Lanjut Instansi"):
+            if risk_label == "Low / Rendah":
+                st.markdown("""**Tindakan Instansi:**\n1. Monitoring rutin kondisi lingkungan\n2. Patroli berkala ringan\n3. Edukasi preventif kepada masyarakat\n4. Dokumentasi dan pelaporan kondisi normal""")
+            elif risk_label == "Moderate / Sedang":
+                st.markdown("""**Tindakan Instansi:**\n1. Peningkatan frekuensi patroli\n2. Penyampaian peringatan dini terbatas\n3. Koordinasi internal BPBD dan aparat desa\n4. Pengawasan aktivitas pembakaran terbuka""")
+            elif risk_label == "High / Tinggi":
+                st.markdown("""**Tindakan Instansi:**\n1. Aktivasi pos siaga tingkat lokal\n2. Penempatan personel siaga di titik rawan\n3. Koordinasi dengan TNI/Polri dan Manggala Agni\n4. Peringatan dini terbuka masyarakat\n5. Penyiapan peralatan pemadaman awal""")
+            elif risk_label == "Very High / Sangat Tinggi":
+                st.markdown("""**Tindakan Instansi:**\n1. Penetapan status siaga darurat tingkat lokal\n2. Aktivasi penuh posko tanggap darurat\n3. Mobilisasi tim pemantauan dan pemadam\n4. Koordinasi lintas sektor (BPBD, TNI, Polri, DLH)\n5. Penyebaran peringatan dini melalui media resmi\n6. Pengetatan larangan pembakaran terbuka""")
 
 
     # === BAGIAN PETA REALTIME PEKANBARU FRAGMENT ===========
@@ -810,14 +871,13 @@ else:
         df_raw = load_data()
         res = preprocess_sensor_data(df_raw)
         
-        col_kiri, col_tengah, col_kanan = st.columns([1.1, 1.4, 1.1], gap="medium")
+        col_kiri, col_tengah, col_kanan = st.columns([1.2, 1.2, 1.2])
         
         with col_kiri:
             indikator_kiri_realtime()
             
         with col_tengah:
-            st.markdown("<div class='stCard' style='padding-top:10px;'>", unsafe_allow_html=True)
-            st.markdown("<h5 style='text-align: center; margin-top:0;'>Visualisasi Peta Spasial</h5>", unsafe_allow_html=True)
+            st.markdown("<h5 style='text-align: center;'>Visualisasi Peta Lokasi Prediksi Kebakaran</h5>", unsafe_allow_html=True)
             peta_realtime_fragment()
             peta_regional_fragment()
 
@@ -825,27 +885,25 @@ else:
             st.markdown("""
             <a href="?page=multimodal" target="_blank" style="text-decoration: none;">
                 <button style="width: 100%; padding: 12px 16px; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-family: sans-serif; font-size: 15px; margin-top: 10px; font-weight: bold; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
-                    📸 Buka Dashboard Multimodal (YOLO + IoT)
+                    📸 Buka Dashboard Multimodal (Hybrid YOLO-ViT+GRU + IoT)
                 </button>
             </a>
             """, unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
 
         with col_kanan:
-            st.markdown("<div class='stCard' style='padding-top:10px;'>", unsafe_allow_html=True)
-            st.markdown("<h5 style='text-align: center; margin-top:0;'>Area Pantauan</h5>", unsafe_allow_html=True)
+            st.markdown("<h5 style='text-align: center;'>IoT Smart Fire Prediction</h5>", unsafe_allow_html=True)
             try:
-                st.image(Image.open("forestiot4.jpg"), use_container_width=True)
+                image = Image.open("forestiot4.jpg")
+                st.image(image.resize((480, 360)))
             except Exception:
                 st.info("Gambar 'forestiot4.jpg' tidak ditemukan di direktori aplikasi.")
-            st.markdown("</div>", unsafe_allow_html=True)
                     
         if res[0] is not None and not isinstance(res[0], str):
             df, clean_df, scaled_all, fitur = res
 
             st.markdown("<div class='section-title' style='margin-top: 25px;'>Tabel Tingkat Resiko dan Intensitas Kebakaran</div>", unsafe_allow_html=True)
             st.markdown("""
-            <div class="scrollable-table stCard" style="margin-bottom: 25px;">
+            <div class="scrollable-table" style="margin-bottom: 25px;">
             <table style='width: 100%; border-collapse: collapse;'>
                 <thead>
                     <tr>
@@ -855,16 +913,16 @@ else:
                     </tr>
                 </thead>
                 <tbody>
-                    <tr style='background-color:#228B22; color:white;'>
-                        <td>Green</td><td>Low / Rendah</td><td style='text-align:left; padding-left: 20px;'>Tingkat resiko kebakaran rendah. Intensitas api pada kategori rendah. Api mudah dikendalikan.</td>
+                    <tr style='background-color:blue; color:white;'>
+                        <td>Blue</td><td>Low / Rendah</td><td style='text-align:left; padding-left: 20px;'>Tingkat resiko kebakaran rendah. Intensitas api pada kategori rendah. Api mudah dikendalikan.</td>
                     </tr>
-                    <tr style='background-color:#FFD700; color:black;'>
-                        <td>Yellow</td><td>Moderate / Sedang</td><td style='text-align:left; padding-left: 20px;'>Tingkat resiko kebakaran sedang. Intensitas api pada kategori sedang. Api relatif masih cukup mudah dikendalikan.</td>
+                    <tr style='background-color:green; color:white;'>
+                        <td>Green</td><td>Moderate / Sedang</td><td style='text-align:left; padding-left: 20px;'>Tingkat resiko kebakaran sedang. Intensitas api pada kategori sedang. Api relatif masih cukup mudah dikendalikan.</td>
                     </tr>
-                    <tr style='background-color:#FF6347; color:white;'>
-                        <td>Orange</td><td>High / Tinggi</td><td style='text-align:left; padding-left: 20px;'>Tingkat resiko kebakaran tinggi. Intensitas api pada kategori tinggi. Api sulit dikendalikan.</td>
+                    <tr style='background-color:yellow; color:black;'>
+                        <td>Yellow</td><td>High / Tinggi</td><td style='text-align:left; padding-left: 20px;'>Tingkat resiko kebakaran tinggi. Intensitas api pada kategori tinggi. Api sulit dikendalikan.</td>
                     </tr>
-                    <tr style='background-color:#8B0000; color:white;'>
+                    <tr style='background-color:red; color:white;'>
                         <td>Red</td><td>Very High / Sangat Tinggi</td><td style='text-align:left; padding-left: 20px;'>Tingkat resiko kebakaran sangat tinggi. Intensitas api pada kategori sangat tinggi. Api sangat sulit dikendalikan.</td>
                     </tr>
                 </tbody>
