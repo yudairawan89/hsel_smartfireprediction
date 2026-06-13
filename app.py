@@ -214,7 +214,6 @@ if current_page == "multimodal":
             input_method = st.radio("Pilih Sumber Pengamatan:", ["📁 Unggah File Citra", "🎥 Kamera Langsung / USB"], horizontal=True)
             img_to_process = None
             
-            # Kotak merah/kosong telah dihapus. Konten menyesuaikan tinggi otomatis.
             if "Kamera" in input_method:
                 st.info("💡 Pastikan memberikan izin akses kamera pada browser Anda.")
                 camera_image = st.camera_input("Ambil Citra Lahan")
@@ -239,6 +238,13 @@ if current_page == "multimodal":
                         st.success("✅ Tidak terdeteksi adanya anomali api pada citra ini.")
             else:
                 st.session_state.yolo_fire_detected = None
+                try:
+                    st.image(Image.open("alat_iot.png"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
+                except:
+                    try: 
+                        st.image(Image.open("forestiot4.jpg"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
+                    except:
+                        st.info("Menunggu input visual...")
                 
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -268,6 +274,7 @@ if current_page == "multimodal":
                     m4.metric("💨 Kec. Angin", f"{float(last_num[fitur[3]]):.1f} m/s")
                     m5.metric("🌱 Kel. Tanah", f"{float(last_num[fitur[4]]):.1f} %")
                     
+                    # Definisikan tanggal_valid untuk mencegah NameError
                     waktu = pd.to_datetime(last_row['Waktu'], errors='coerce')
                     if pd.isna(waktu):
                         try: waktu = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
@@ -277,15 +284,18 @@ if current_page == "multimodal":
                         hari = convert_day_to_indonesian(waktu.strftime('%A'))
                         bulan = convert_month_to_indonesian(waktu.strftime('%B'))
                         tanggal = waktu.strftime(f'%d {bulan} %Y')
+                        tanggal_valid = waktu.strftime('%d %B %Y, %H:%M WIB')
                     else:
                         hari, tanggal = "-", str(last_row['Waktu'])
+                        tanggal_valid = str(last_row['Waktu'])
                         
                     font, bg = risk_styles.get(hsel_risk, ("black", "white"))
                     
+                    # Memperbesar ukuran font prediksi menjadi 16px dan label risiko 24px
                     st.markdown(
-                        f"<div style='background-color:{bg}; color:{font}; padding:12px; border-radius:8px; font-weight:bold; margin-top:15px; font-size:14px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>"
+                        f"<div style='background-color:{bg}; color:{font}; padding:15px; border-radius:8px; font-weight:bold; margin-top:15px; font-size:16px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>"
                         f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran:<br>"
-                        f"<span style='text-decoration: underline; font-size: 20px;'>{hsel_risk}</span></div>",
+                        f"<span style='text-decoration: underline; font-size: 24px;'>{hsel_risk}</span></div>",
                         unsafe_allow_html=True
                     )
                     
@@ -341,7 +351,7 @@ if current_page == "multimodal":
                             try: st.image(Image.open("forestiot4.jpg"), use_container_width=True)
                             except: st.info("Gambar alat_iot.png tidak ditemukan.")
 
-                    # INFORMASI PRODUCED BY (Seperti di Dashboard Pekanbaru)
+                    # INFORMASI PRODUCED BY
                     logo_upi_b64 = get_image_base64("logo upi yptk.png")
                     logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 50px; height: auto;" alt="Logo">' if logo_upi_b64 else ''
                     
@@ -371,7 +381,7 @@ if current_page == "multimodal":
 
 
 # -------------------------------------------------------------------------
-# HALAMAN 1 (DEFAULT): DASHBOARD UTAMA (DIKEMBALIKAN KE VERSI ORIGINAL)
+# HALAMAN 1 (DEFAULT): DASHBOARD UTAMA
 # -------------------------------------------------------------------------
 else:
     # === HEADER ===
@@ -398,7 +408,7 @@ else:
             st.markdown(
                 f"""
                 <a href='{SHEET_EDIT_LINK}' target='_blank'>
-                <button style='padding: 6px 16px; background-color: #1f77b4; color: white; border: none; border-radius: 4px; cursor: pointer;'>Data Cloud</button>
+                <button style='padding: 6px 16px; background-color: #1f77b4; color: white; border: none; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>Data Cloud</button>
                 </a>
                 """,
                 unsafe_allow_html=True
@@ -454,7 +464,7 @@ else:
         st.markdown(sensor_html, unsafe_allow_html=True)
 
         st.markdown(
-            f"<p style='background-color:{bg}; color:{font}; padding:10px; border-radius:8px; font-weight:bold;'>"
+            f"<p style='background-color:{bg}; color:{font}; padding:10px; border-radius:8px; font-weight:bold; margin-top: 15px;'>"
             f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran: "
             f"<span style='text-decoration: underline; font-size: 22px;'>{risk_label}</span></p>",
             unsafe_allow_html=True
@@ -613,10 +623,15 @@ else:
             except Exception:
                 xai_html = "<i>Data XAI belum siap dimuat.</i>"
 
-            if risk_label == "Low / Rendah": tl_html = "<ul><li>Monitoring rutin</li><li>Patroli ringan</li><li>Edukasi preventif</li></ul>"
-            elif risk_label == "Moderate / Sedang": tl_html = "<ul><li>Peningkatan patroli</li><li>Peringatan terbatas</li><li>Pengawasan pembakaran</li></ul>"
-            elif risk_label == "High / Tinggi": tl_html = "<ul><li>Aktivasi pos siaga</li><li>Koordinasi TNI/Polri</li><li>Siap alat pemadaman</li></ul>"
-            else: tl_html = "<ul><li>Status siaga darurat</li><li>Mobilisasi pemadam</li><li>Koordinasi lintas sektor</li></ul>"
+            # Teks Tindak Lanjut Instansi disamakan secara presisi dengan halaman Utama
+            if risk_label == "Low / Rendah":
+                tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Monitoring rutin kondisi lingkungan</li><li>Patroli berkala ringan</li><li>Edukasi preventif kepada masyarakat</li><li>Dokumentasi dan pelaporan kondisi normal</li></ul>"
+            elif risk_label == "Moderate / Sedang":
+                tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Peningkatan frekuensi patroli</li><li>Penyampaian peringatan dini terbatas</li><li>Koordinasi internal BPBD dan aparat desa</li><li>Pengawasan aktivitas pembakaran terbuka</li></ul>"
+            elif risk_label == "High / Tinggi":
+                tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Aktivasi pos siaga tingkat lokal</li><li>Penempatan personel siaga di titik rawan</li><li>Koordinasi dengan TNI/Polri dan Manggala Agni</li><li>Peringatan dini terbuka masyarakat</li><li>Penyiapan peralatan pemadaman awal</li></ul>"
+            else:
+                tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Status siaga darurat tingkat lokal</li><li>Aktivasi penuh posko tanggap darurat</li><li>Mobilisasi tim pemantauan dan pemadam</li><li>Koordinasi lintas sektor (BPBD, TNI, Polri, DLH)</li><li>Penyebaran peringatan dini melalui media resmi</li><li>Pengetatan larangan pembakaran terbuka</li></ul>"
 
             try:
                 riau_geojson_data = load_riau_geojson()
@@ -783,8 +798,8 @@ else:
 
             logo_b64 = get_image_base64("logo.png")
             logo_upi_b64 = get_image_base64("logo upi yptk.png")
-            logo_img_tag = f'<img src="data:image/png;base64,{logo_b64}" style="height: 55px; background: white; padding: 4px; border-radius: 4px;" alt="Logo">' if logo_b64 else ''
-            logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 60px; height: auto;" alt="Logo UPI YPTK">' if logo_upi_b64 else ''
+            logo_img_tag = f'<img src="data:image/png;base64,{logo_b64}" style="height: 45px; background: white; padding: 4px; border-radius: 4px;" alt="Logo">' if logo_b64 else ''
+            logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 50px; height: auto;" alt="Logo UPI YPTK">' if logo_upi_b64 else ''
             
             regional_coords = [0.8500, 101.9000] 
             m_regional = folium.Map(location=regional_coords, zoom_start=7.5, control_scale=True, tiles='OpenStreetMap')
@@ -836,11 +851,11 @@ else:
                         <div style="display: flex; align-items: center; gap: 15px;">
                             {logo_img_tag}
                             <div>
-                                <h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.5px;">Pemantauan Regional (Pekanbaru, Siak, Pelalawan, Bengkalis)</h2>
+                                <h2 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.5px;">Pemantauan Regional (Pekanbaru, Siak, Pelalawan, Bengkalis)</h2>
                                 <p style="margin: 5px 0 0 0; font-size: 13px; color: #d1e8ff;">Tahap Perluasan Integrasi Sensor IoT</p>
                             </div>
                         </div>
-                        <div style="text-align: right; font-size: 13px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
+                        <div style="text-align: right; font-size: 13px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 8px;">
                             <b style="font-size: 14px; letter-spacing: 0.5px;">Domain:</b> Sebagian Wilayah Riau<br>
                             <span style="color: #e2f0ff;"><b>Valid/Berlaku:</b> {tanggal_valid}</span>
                         </div>
