@@ -376,7 +376,7 @@ if current_page == "multimodal":
                         st.markdown("<hr style='margin:25px 0 15px 0; border: 1px dashed #e0e0e0;'>", unsafe_allow_html=True)
                         
                         # === 3. BOTTOM SECTION: LOGIKA MULTIMODAL KEPUTUSAN ===
-                        st.markdown("<h4 style='color:#2c3e50; margin-bottom:0;'>🧠 Output Keputusan Terpadu</h4>", unsafe_allow_html=True)
+                        st.markdown("<h4 style='color:#2c3e50; margin-bottom:0;'>🧠 Output Keputusan Multimodal</h4>", unsafe_allow_html=True)
                         fire_detected = st.session_state.get("yolo_fire_detected", None)
                         
                         if fire_detected is None:
