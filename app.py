@@ -122,7 +122,9 @@ def get_multimodal_decision(visual_label, iot_label):
 
 # === LOAD MODEL, SCALER, SASTRAWI, YOLO ===
 @st.cache_resource
-def load_model(): return joblib.load("HSEL_IoT_Model.joblib")
+def load_model(): 
+    mdl = joblib.load("HSEL_IoT_Model.joblib")
+    return mdl
 
 @st.cache_resource
 def load_scaler(): return joblib.load("scaler.joblib")
@@ -134,7 +136,29 @@ def load_sastrawi():
 
 @st.cache_resource
 def load_text_models():
-    return joblib.load("tfidf_vectorizer.joblib"), joblib.load("stacking_text_model.joblib")
+    vec = joblib.load("tfidf_vectorizer.joblib")
+    mdl = joblib.load("stacking_text_model.joblib")
+    
+    # PATCHER OTOMATIS: Memperbaiki error _effective_probability scikit-learn
+    def patch_sklearn_version_issues(obj):
+        if type(obj).__name__ == 'SVC':
+            if not hasattr(obj, '_effective_probability'):
+                obj._effective_probability = getattr(obj, 'probability', False)
+        if hasattr(obj, 'get_params'):
+            try:
+                for _, est in obj.get_params(deep=False).items():
+                    if est is not None: patch_sklearn_version_issues(est)
+            except Exception: pass
+        for attr in ['estimators_', 'final_estimator_', 'base_estimator_']:
+            if hasattr(obj, attr):
+                val = getattr(obj, attr)
+                if isinstance(val, (list, tuple)):
+                    for est in val: patch_sklearn_version_issues(est)
+                elif val is not None:
+                    patch_sklearn_version_issues(val)
+
+    patch_sklearn_version_issues(mdl)
+    return vec, mdl
 
 @st.cache_resource
 def load_yolo_model():
@@ -266,10 +290,6 @@ if current_page == "multimodal":
         with col_sensor:
             @st.fragment(run_every=7)
             def sensor_and_decision_fragment():
-                # Inisialisasi default agar tidak terjadi NameError jika gagal render
-                tanggal_valid = "Memuat data..."
-                hsel_risk = "Menunggu Data"
-                
                 df_raw = load_data()
                 res = preprocess_sensor_data(df_raw)
                 
@@ -380,9 +400,12 @@ if current_page == "multimodal":
                 else:
                     st.warning("⚠️ Data IoT Terputus atau Tidak Tersedia.")
                     
-                # === 4. PRODUCED BY (BERADA DI DALAM FRAGMENT AGAR AMAN DARI ERROR) ===
+                # === 4. PRODUCED BY ===
                 logo_upi_b64 = get_image_base64("logo upi yptk.png")
                 logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 80px; height: auto;" alt="Logo">' if logo_upi_b64 else ''
+                
+                # Gunakan variabel ini agar aman jika terjadi masalah load data sheet
+                tanggal_str = tanggal_valid if 'tanggal_valid' in locals() else "Memuat..."
                 
                 st.markdown(f"""
                 <div style="background: #fdfdfd; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-top:30px; box-shadow: 0 4px 8px rgba(0,0,0,0.05);">
@@ -395,7 +418,7 @@ if current_page == "multimodal":
                         </div>
                     </div>
                     <div style="border-top: 1px dashed #cbd5e0; padding-top: 12px; text-align: center;">
-                        <div style="font-size: 13px; color: #3182ce; font-weight: 600; margin-bottom: 5px;">Processed: <span style="color: #2b6cb0; font-weight: normal;">{tanggal_valid}</span></div>
+                        <div style="font-size: 13px; color: #3182ce; font-weight: 600; margin-bottom: 5px;">Processed: <span style="color: #2b6cb0; font-weight: normal;">{tanggal_str}</span></div>
                         <div style="font-size: 12px; color: #718096;">Data Source: Sensor IoT Lokal & Vision AI</div>
                     </div>
                 </div>
@@ -1089,7 +1112,7 @@ else:
 
     main_dashboard()
 
-    # === PENGUJIAN MANUAL & TEKS ===
+    # === PENGUJIAN MANUAL & TEKS (Dikembalikan ke Fungsi Asli dari Script Awal Anda) ===
     if "man_suhu" not in st.session_state: st.session_state.man_suhu = 30.0
     if "man_kel" not in st.session_state: st.session_state.man_kel = 65.0
     if "man_curah" not in st.session_state: st.session_state.man_curah = 10.0
@@ -1119,7 +1142,6 @@ else:
     @st.fragment
     def manual_prediction_ui():
         st.markdown("<div class='section-title' style='margin-top: 30px;'>Pengujian Menggunakan Data Meteorologi Manual</div>", unsafe_allow_html=True)
-        
         col1, col2, col3 = st.columns(3)
         with col1:
             st.number_input("Suhu Udara (°C)", key="man_suhu")
@@ -1179,6 +1201,7 @@ else:
 
                 prob_dict = {}
                 try:
+                    # Model Text Predict Proba with Scikit-learn patch protection applied during load
                     proba = model_text.predict_proba(X_trans)[0]
                     prob_dict = {
                         "Low / Rendah": proba[0],
