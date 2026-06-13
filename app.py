@@ -204,7 +204,8 @@ if current_page == "multimodal":
     if yolo_model is None:
         st.error("🚨 Model YOLO (`best.pt`) tidak ditemukan. Pastikan Anda telah mengunggah file `best.pt` ke direktori aplikasi!")
     else:
-        col_vis, col_sensor = st.columns([1.5, 1.1], gap="large")
+        # Memberikan rasio frame kanan sedikit lebih lebar agar Map & IoT Device lebih besar
+        col_vis, col_sensor = st.columns([1.15, 1.25], gap="large")
         
         # === KOLOM VISUAL (KIRI) ===
         with col_vis:
@@ -239,8 +240,9 @@ if current_page == "multimodal":
             else:
                 st.session_state.yolo_fire_detected = None
                 try:
-                    st.image(Image.open("alat_iot.png"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
-                except:
+                    # Menggunakan gambar hutan.png sesuai permintaan
+                    st.image(Image.open("hutan.png"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
+                except Exception:
                     try: 
                         st.image(Image.open("forestiot4.jpg"), use_container_width=True, caption="Menunggu Input Visual (Kamera/Unggah Citra)")
                     except:
@@ -256,7 +258,6 @@ if current_page == "multimodal":
                 res = preprocess_sensor_data(df_raw)
                 
                 st.markdown("<div style='background-color:#fff; padding:25px; border-radius:12px; border:2px solid #e2e8f0; box-shadow:0 6px 12px rgba(0,0,0,0.08); margin-bottom:0;'>", unsafe_allow_html=True)
-                st.markdown("<h4 style='color:#2c3e50; border-bottom:2px solid #e0e0e0; padding-bottom:10px; margin-top:0;'>📡 Konteks Lingkungan (IoT)</h4>", unsafe_allow_html=True)
                 
                 if res[0] is not None and not isinstance(res[0], str):
                     df, clean_df, scaled_all, fitur = res
@@ -264,17 +265,7 @@ if current_page == "multimodal":
                     last_num = clean_df.iloc[-1]
                     hsel_risk = last_row["Prediksi Kebakaran"]
                     
-                    st.markdown("<p style='font-size:13px; color:gray; margin-bottom:5px;'>Pembacaan Node Sensor Real-Time:</p>", unsafe_allow_html=True)
-                    m1, m2, m3 = st.columns(3)
-                    m1.metric("🌡️ Suhu", f"{float(last_num[fitur[0]]):.1f} °C")
-                    m2.metric("💧 Kelembapan", f"{float(last_num[fitur[1]]):.1f} %")
-                    m3.metric("🌧️ Curah Hujan", f"{float(last_num[fitur[2]]):.1f} mm")
-                    
-                    m4, m5, _ = st.columns([1,1,1])
-                    m4.metric("💨 Kec. Angin", f"{float(last_num[fitur[3]]):.1f} m/s")
-                    m5.metric("🌱 Kel. Tanah", f"{float(last_num[fitur[4]]):.1f} %")
-                    
-                    # Definisikan tanggal_valid untuk mencegah NameError
+                    # Definisikan tanggal_valid
                     waktu = pd.to_datetime(last_row['Waktu'], errors='coerce')
                     if pd.isna(waktu):
                         try: waktu = pd.to_datetime(str(last_row['Waktu']), dayfirst=False, errors='coerce')
@@ -291,39 +282,12 @@ if current_page == "multimodal":
                         
                     font, bg = risk_styles.get(hsel_risk, ("black", "white"))
                     
-                    # Memperbesar ukuran font prediksi menjadi 16px dan label risiko 24px
-                    st.markdown(
-                        f"<div style='background-color:{bg}; color:{font}; padding:15px; border-radius:8px; font-weight:bold; margin-top:15px; font-size:16px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>"
-                        f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran:<br>"
-                        f"<span style='text-decoration: underline; font-size: 24px;'>{hsel_risk}</span></div>",
-                        unsafe_allow_html=True
-                    )
+                    # === 1. TOP SECTION: MAP & IOT DEVICE (DI PERBESAR) ===
+                    st.markdown("<h4 style='color:#2c3e50; border-bottom:2px solid #e0e0e0; padding-bottom:10px; margin-top:0;'>🗺️ Peta Konteks & Sensor</h4>", unsafe_allow_html=True)
                     
-                    st.markdown("<hr style='margin:15px 0;'>", unsafe_allow_html=True)
-                    
-                    # LOGIKA MULTIMODAL KEPUTUSAN
-                    st.markdown("<h4 style='color:#2c3e50; margin-bottom:0;'>🧠 Output Keputusan Terpadu</h4>", unsafe_allow_html=True)
-                    fire_detected = st.session_state.get("yolo_fire_detected", None)
-                    
-                    if fire_detected is None:
-                        st.info("ℹ️ Menunggu konfirmasi visual (Silakan unggah atau ambil gambar di panel kiri).")
-                    else:
-                        visual_val = 1 if fire_detected else 0
-                        title, desc, color, icon = get_multimodal_decision(visual_val, hsel_risk)
-                        font_col = "white" if color not in ["#FFD700", "#FF8C00", "#FFA500"] else "black"
-                        
-                        st.markdown(f"""
-                        <div style='background-color: {color}; color: {font_col}; padding: 18px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.15); margin-top: 10px;'>
-                            <h3 style='color: {font_col}; margin-top: 0; font-size:20px;'>{icon} {title}</h3>
-                            <p style='font-size: 14px; margin-bottom: 0; line-height:1.4;'>{desc}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                    # MINI MAP & IOT SENSOR BERDAMPINGAN
-                    st.markdown("<h5 style='margin-top:25px; color:#2c3e50;'>🗺️ Peta Konteks & Sensor</h5>", unsafe_allow_html=True)
-                    
-                    cm1, cm2 = st.columns([1.2, 1])
+                    cm1, cm2 = st.columns([1.5, 1], gap="medium")
                     with cm1:
+                        st.markdown("<div style='font-size:13px; font-weight:bold; color:#555; margin-bottom:5px;'>Peta Konteks Lokal</div>", unsafe_allow_html=True)
                         marker_color = {"Low / Rendah": "blue", "Moderate / Sedang": "green", "High / Tinggi": "orange", "Very High / Sangat Tinggi": "red"}.get(hsel_risk, "gray")
                         m_mini = folium.Map(location=[0.5333, 101.4500], zoom_start=9.5, tiles='CartoDB positron', control_scale=True)
                         
@@ -341,22 +305,65 @@ if current_page == "multimodal":
                         
                         popup_html = f"<b>Pekanbaru</b><br>HSEL: {hsel_risk}"
                         folium.Marker(location=[0.5333, 101.4500], popup=popup_html, icon=folium.Icon(color=marker_color, icon="info-sign")).add_to(m_mini)
-                        folium_static(m_mini, width=220, height=200)
+                        
+                        # Lebar peta dibuat statis dan proporsional untuk mengisi kolom kiri (cm1)
+                        folium_static(m_mini, width=360, height=260)
                         
                     with cm2:
-                        st.markdown("<div style='font-size:12px; color:gray; text-align:center; margin-bottom:5px;'>Alat IoT</div>", unsafe_allow_html=True)
+                        st.markdown("<div style='font-size:13px; font-weight:bold; color:#555; margin-bottom:5px;'>Alat Node IoT</div>", unsafe_allow_html=True)
                         try:
                             st.image(Image.open("alat_iot.png"), use_container_width=True)
                         except Exception:
-                            try: st.image(Image.open("forestiot4.jpg"), use_container_width=True)
-                            except: st.info("Gambar alat_iot.png tidak ditemukan.")
-
-                    # INFORMASI PRODUCED BY
+                            st.info("Gambar alat_iot.png tidak ditemukan.")
+                    
+                    st.markdown("<hr style='margin:25px 0 15px 0; border: 1px dashed #e0e0e0;'>", unsafe_allow_html=True)
+                    
+                    # === 2. MIDDLE SECTION: KONTEKS LINGKUNGAN ===
+                    st.markdown("<h4 style='color:#2c3e50; border-bottom:2px solid #e0e0e0; padding-bottom:10px; margin-top:0;'>📡 Konteks Lingkungan (IoT)</h4>", unsafe_allow_html=True)
+                    
+                    st.markdown("<p style='font-size:13px; color:gray; margin-bottom:10px;'>Pembacaan Node Sensor Real-Time:</p>", unsafe_allow_html=True)
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("🌡️ Suhu", f"{float(last_num[fitur[0]]):.1f} °C")
+                    m2.metric("💧 Kelembapan", f"{float(last_num[fitur[1]]):.1f} %")
+                    m3.metric("🌧️ Curah Hujan", f"{float(last_num[fitur[2]]):.1f} mm")
+                    
+                    m4, m5, _ = st.columns([1,1,1])
+                    m4.metric("💨 Kec. Angin", f"{float(last_num[fitur[3]]):.1f} m/s")
+                    m5.metric("🌱 Kel. Tanah", f"{float(last_num[fitur[4]]):.1f} %")
+                    
+                    st.markdown(
+                        f"<div style='background-color:{bg}; color:{font}; padding:15px; border-radius:8px; font-weight:bold; margin-top:15px; font-size:16px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>"
+                        f"Pada hari {hari}, tanggal {tanggal}, lahan ini diprediksi memiliki tingkat resiko kebakaran:<br>"
+                        f"<span style='text-decoration: underline; font-size: 24px;'>{hsel_risk}</span></div>",
+                        unsafe_allow_html=True
+                    )
+                    
+                    st.markdown("<hr style='margin:25px 0 15px 0; border: 1px dashed #e0e0e0;'>", unsafe_allow_html=True)
+                    
+                    # === 3. BOTTOM SECTION: LOGIKA MULTIMODAL KEPUTUSAN ===
+                    st.markdown("<h4 style='color:#2c3e50; margin-bottom:0;'>🧠 Output Keputusan Terpadu</h4>", unsafe_allow_html=True)
+                    fire_detected = st.session_state.get("yolo_fire_detected", None)
+                    
+                    if fire_detected is None:
+                        st.info("ℹ️ Menunggu konfirmasi visual (Silakan unggah atau ambil gambar di panel kiri).")
+                    else:
+                        visual_val = 1 if fire_detected else 0
+                        title, desc, color, icon = get_multimodal_decision(visual_val, hsel_risk)
+                        font_col = "white" if color not in ["#FFD700", "#FF8C00", "#FFA500"] else "black"
+                        
+                        st.markdown(f"""
+                        <div style='background-color: {color}; color: {font_col}; padding: 18px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.15); margin-top: 10px;'>
+                            <h3 style='color: {font_col}; margin-top: 0; font-size:20px;'>{icon} {title}</h3>
+                            <p style='font-size: 14px; margin-bottom: 0; line-height:1.4;'>{desc}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                    # === 4. PRODUCED BY ===
                     logo_upi_b64 = get_image_base64("logo upi yptk.png")
                     logo_upi_tag = f'<img src="data:image/png;base64,{logo_upi_b64}" style="width: 50px; height: auto;" alt="Logo">' if logo_upi_b64 else ''
                     
                     st.markdown(f"""
-                    <div style="background: #fdfdfd; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-top:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="background: #fdfdfd; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-top:30px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
                         <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 12px;">
                             {logo_upi_tag}
                             <div style="text-align: left; line-height: 1.4;">
@@ -550,10 +557,10 @@ else:
                 st.error(f"Visualisasi XAI belum dapat diproses: {e}")
 
         with st.expander("Tindak Lanjut Instansi"):
-            if risk_label == "Low / Rendah": st.markdown("""**Tindakan Instansi:**\n1. Monitoring rutin kondisi lingkungan\n2. Patroli berkala ringan\n3. Edukasi preventif kepada masyarakat\n4. Dokumentasi dan pelaporan kondisi normal""")
-            elif risk_label == "Moderate / Sedang": st.markdown("""**Tindakan Instansi:**\n1. Peningkatan frekuensi patroli\n2. Penyampaian peringatan dini terbatas\n3. Koordinasi internal BPBD dan aparat desa\n4. Pengawasan aktivitas pembakaran terbuka""")
-            elif risk_label == "High / Tinggi": st.markdown("""**Tindakan Instansi:**\n1. Aktivasi pos siaga tingkat lokal\n2. Penempatan personel siaga di titik rawan\n3. Koordinasi dengan TNI/Polri dan Manggala Agni\n4. Peringatan dini terbuka masyarakat\n5. Penyiapan peralatan pemadaman awal""")
-            elif risk_label == "Very High / Sangat Tinggi": st.markdown("""**Tindakan Instansi:**\n1. Penetapan status siaga darurat tingkat lokal\n2. Aktivasi penuh posko tanggap darurat\n3. Mobilisasi tim pemantauan dan pemadam\n4. Koordinasi lintas sektor (BPBD, TNI, Polri, DLH)\n5. Penyebaran peringatan dini melalui media resmi\n6. Pengetatan larangan pembakaran terbuka""")
+            if risk_label == "Low / Rendah": st.markdown("""<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Monitoring rutin kondisi lingkungan</li><li>Patroli berkala ringan</li><li>Edukasi preventif kepada masyarakat</li><li>Dokumentasi dan pelaporan kondisi normal</li></ul>""", unsafe_allow_html=True)
+            elif risk_label == "Moderate / Sedang": st.markdown("""<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Peningkatan frekuensi patroli</li><li>Penyampaian peringatan dini terbatas</li><li>Koordinasi internal BPBD dan aparat desa</li><li>Pengawasan aktivitas pembakaran terbuka</li></ul>""", unsafe_allow_html=True)
+            elif risk_label == "High / Tinggi": st.markdown("""<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Aktivasi pos siaga tingkat lokal</li><li>Penempatan personel siaga di titik rawan</li><li>Koordinasi dengan TNI/Polri dan Manggala Agni</li><li>Peringatan dini terbuka masyarakat</li><li>Penyiapan peralatan pemadaman awal</li></ul>""", unsafe_allow_html=True)
+            elif risk_label == "Very High / Sangat Tinggi": st.markdown("""<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Status siaga darurat tingkat lokal</li><li>Aktivasi penuh posko tanggap darurat</li><li>Mobilisasi tim pemantauan dan pemadam</li><li>Koordinasi lintas sektor (BPBD, TNI, Polri, DLH)</li><li>Penyebaran peringatan dini melalui media resmi</li><li>Pengetatan larangan pembakaran terbuka</li></ul>""", unsafe_allow_html=True)
 
     # === BAGIAN PETA REALTIME PEKANBARU FRAGMENT ===========
     @st.fragment(run_every=7)
@@ -623,7 +630,6 @@ else:
             except Exception:
                 xai_html = "<i>Data XAI belum siap dimuat.</i>"
 
-            # Teks Tindak Lanjut Instansi disamakan secara presisi dengan halaman Utama
             if risk_label == "Low / Rendah":
                 tl_html = "<ul style='margin: 4px 0 0 0; padding-left: 18px; color:#333; font-size:12px;'><li>Monitoring rutin kondisi lingkungan</li><li>Patroli berkala ringan</li><li>Edukasi preventif kepada masyarakat</li><li>Dokumentasi dan pelaporan kondisi normal</li></ul>"
             elif risk_label == "Moderate / Sedang":
