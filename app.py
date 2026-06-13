@@ -312,9 +312,9 @@ if current_page == "multimodal":
                     with cm2:
                         st.markdown("<div style='font-size:13px; font-weight:bold; color:#555; margin-bottom:5px;'>Alat Node IoT</div>", unsafe_allow_html=True)
                         try:
-                            st.image(Image.open("alat_iot.png"), use_container_width=True)
+                            st.image(Image.open("forestiot4.jpg"), use_container_width=True)
                         except Exception:
-                            st.info("Gambar alat_iot.png tidak ditemukan.")
+                            st.info("Gambar forestiot4.jpg tidak ditemukan.")
                     
                     st.markdown("<hr style='margin:25px 0 15px 0; border: 1px dashed #e0e0e0;'>", unsafe_allow_html=True)
                     
